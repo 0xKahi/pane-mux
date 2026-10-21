@@ -64,8 +64,8 @@ trait Tmux {
   fn tree(&self) -> Result<Tree>;                 // one list-panes -a -F call
   fn capture(&self, pane_id: &str) -> Result<String>; // capture-pane -e -p -J -t
   fn current(&self) -> Result<Option<Current>>;  // display -p session/window/pane ids
-  fn new_session(&self, name: Option<&str>) -> Result<()>; // new-session -d [-s]
-  fn new_window(&self, session: &str, name: Option<&str>) -> Result<()>;
+  fn new_session(&self, name: Option<&str>) -> Result<String>; // new-session -d -P [-s]; returns new id
+  fn new_window(&self, session_id: &str, name: Option<&str>) -> Result<String>; // returns new id
   fn rename_session / rename_window / kill_session / kill_window / kill_pane
   fn switch_client(&self, target: &str) -> Result<()>;
 }

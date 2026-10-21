@@ -13,19 +13,19 @@
 
 - [x] 2.1 Spike: inside `tmux display-popup`, record whether `TMUX_PANE` is set/inherited; document result in design.md D7 and choose popup detection; verify by running a popup that prints `env | grep TMUX` (result: not set in popups)
 - [x] 2.2 Spike: check whether `switch-client -t sess:win.pane` activates window and pane; document result in design.md D8 (result: yes, per `man tmux`; one call suffices)
-- [ ] 2.3 Implement `tmux/model.rs` (Session/Window/Pane/Tree, ids, `Target` with `at(level)` → `work` / `work:1` / `work:1.0`); verify unit tests for target formatting
-- [ ] 2.4 Implement `tmux/format.rs` parsing tab-separated `list-panes -a -F` output into a `Tree`; verify unit tests with fixture strings (multiple sessions, names with spaces)
-- [ ] 2.5 Implement `Tmux` trait + real `Command`-based client (tree, capture, current, new/rename/kill, switch_client) mapping non-zero exits to errors with stderr; verify opt-in integration test against `tmux -L pane-mux-test`
-- [ ] 2.6 Implement `FakeTmux` for tests; verify it is usable from a unit test that builds a tree and records mutations
+- [x] 2.3 Implement `tmux/model.rs` (Session/Window/Pane/Tree, ids, `Target` with `at(level)` → `work` / `work:1` / `work:1.0`); verify unit tests for target formatting
+- [x] 2.4 Implement `tmux/format.rs` parsing tab-separated `list-panes -a -F` output into a `Tree`; verify unit tests with fixture strings (multiple sessions, names with spaces)
+- [x] 2.5 Implement `Tmux` trait + real `Command`-based client (tree, capture, current, new/rename/kill, switch_client) mapping non-zero exits to errors with stderr; verify opt-in integration test against `tmux -L pane-mux-test`
+- [x] 2.6 Implement `FakeTmux` for tests; verify it is usable from a unit test that builds a tree and records mutations
 
 ## 3. Configuration
 
-- [ ] 3.1 Implement `config/paths.rs` resolution (`PANE_MUX_CONFIG_HOME` → `XDG_CONFIG_HOME/pane-mux` → `~/.config/pane-mux`, absolute-only overrides); verify unit tests for each branch
+- [x] 3.1 Implement `config/paths.rs` resolution (`PANE_MUX_CONFIG_HOME` → `XDG_CONFIG_HOME/pane-mux` → `~/.config/pane-mux`, absolute-only overrides); verify unit tests for each branch
 - [ ] 3.2 Implement preset macro (debug reads from disk, release `include_str!`) and add `config-default.toml`; verify `cargo build --release` embeds presets (binary runs with no config dir)
-- [ ] 3.3 Implement `toml::Table` deep-merge and typed `Config` (`[picker] preview_ratio` 1-99, `preview_position` top|bottom) with validation; verify tests for partial override and invalid ratio error
-- [ ] 3.4 Implement `Key` parsing (string and crossterm `KeyEvent`), `Chord` (`on`/`run` one-or-many, `desc`) and `run` string → `Action` parsing; verify tests for `<C-u>`, `<PageUp>`, sequences, unknown key/command errors
-- [ ] 3.5 Implement keymap layer merge (`keymap` replace, `prepend_keymap`, `append_keymap`) and author `keymap-default.toml` (picker/input/confirm/help per exploration); verify tests for the three configuration-spec keymap scenarios
-- [ ] 3.6 Implement theme structs, `StyleDef` → ratatui `Style`, `[icons]`, and author `theme-default.toml` from the author's yazi theme; verify tests for partial theme override and custom icon
+- [x] 3.3 Implement `toml::Table` deep-merge and typed `Config` (`[picker] preview_ratio` 1-99, `preview_position` top|bottom) with validation; verify tests for partial override and invalid ratio error
+- [x] 3.4 Implement `Key` parsing (string and crossterm `KeyEvent`), `Chord` (`on`/`run` one-or-many, `desc`) and `run` string → `Action` parsing; verify tests for `<C-u>`, `<PageUp>`, sequences, unknown key/command errors
+- [x] 3.5 Implement keymap layer merge (`keymap` replace, `prepend_keymap`, `append_keymap`) and author `keymap-default.toml` (picker/input/confirm/help per exploration); verify tests for the three configuration-spec keymap scenarios
+- [x] 3.6 Implement theme structs, `StyleDef` → ratatui `Style`, `[icons]`, and author `theme-default.toml` from the author's yazi theme; verify tests for partial theme override and custom icon
 - [ ] 3.7 Implement config loading entry point with error reporting (file path + message, exit 2); verify test with invalid TOML fixture via `PANE_MUX_CONFIG_HOME`
 - [ ] 3.8 Document config files, locations and defaults in `README.md`; verify examples parse by loading them in a test
 

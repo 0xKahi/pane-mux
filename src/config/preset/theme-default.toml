@@ -1,0 +1,55 @@
+# Adapted from the user's yazi theme: reversed indicators, gray borders,
+# green/blue mode labels, and yellow/red input and confirmation frames.
+[picker]
+border = { fg = "gray" }
+hovered = { reversed = true }
+hovered_unfocused = { underline = true }
+current = { fg = "lightgreen", bold = true }
+header = { fg = "lightgreen" }
+
+[preview]
+border = { fg = "gray" }
+title = { fg = "lightcyan" }
+
+[icons]
+# The spec's session and pane glyphs are empty; use Nerd Font fallbacks.
+session = { text = "", fg = "#82AAFF" }
+window = { text = "󱂬", fg = "lightcyan" }
+pane = { text = "", fg = "lightgreen" }
+
+[mode]
+normal = { bg = "blue", fg = "#1b1d2b", bold = true }
+input = { bg = "magenta", fg = "#1b1d2b", bold = true }
+confirm = { bg = "red", fg = "#1b1d2b", bold = true }
+
+[status]
+overall = {}
+label = { bold = true }
+message = { fg = "lightcyan" }
+
+[which]
+border = { fg = "gray" }
+key = { fg = "green" }
+desc = { fg = "lightcyan" }
+separator = { fg = "magenta" }
+
+[confirm]
+border = { fg = "yellow" }
+title = { fg = "red" }
+body = {}
+
+[input]
+border = { fg = "yellow" }
+title = { fg = "red" }
+value = { fg = "#c8d3f5" }
+
+[help]
+border = { fg = "gray" }
+title = { fg = "lightcyan" }
+on = { fg = "green" }
+run = { fg = "magenta" }
+desc = { fg = "cyan" }
+hovered = { reversed = true, bold = true }
+
+[notify]
+error = { fg = "red" }

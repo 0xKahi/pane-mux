@@ -1,0 +1,57 @@
+[picker]
+keymap = [
+    { on = "k", run = "arrow prev", desc = "Previous item" },
+    { on = "<Up>", run = "arrow prev", desc = "Previous item" },
+    { on = "j", run = "arrow next", desc = "Next item" },
+    { on = "<Down>", run = "arrow next", desc = "Next item" },
+    { on = "h", run = "focus prev", desc = "Focus previous column" },
+    { on = "<Left>", run = "focus prev", desc = "Focus previous column" },
+    { on = "l", run = "focus next", desc = "Focus next column" },
+    { on = "<Right>", run = "focus next", desc = "Focus next column" },
+    { on = ["g", "g"], run = "arrow top", desc = "Go to top" },
+    { on = "G", run = "arrow bot", desc = "Go to bottom" },
+    { on = "<PageUp>", run = "arrow -100%", desc = "Previous page" },
+    { on = "<PageDown>", run = "arrow 100%", desc = "Next page" },
+    { on = "<C-u>", run = "seek -50%", desc = "Scroll preview up half a page" },
+    { on = "<C-d>", run = "seek 50%", desc = "Scroll preview down half a page" },
+    { on = "<Enter>", run = "pick", desc = "Pick hovered target" },
+    { on = "q", run = "quit", desc = "Quit without picking" },
+    { on = "<Esc>", run = "escape", desc = "Dismiss popup or message" },
+    { on = "a", run = "create", desc = "Create session or window" },
+    { on = "r", run = "rename", desc = "Rename session or window" },
+    { on = ["d", "d"], run = "remove", desc = "Delete hovered item" },
+    { on = "?", run = "help", desc = "Show help" },
+    { on = "<F1>", run = "help", desc = "Show help" },
+]
+
+[input]
+keymap = [
+    { on = "<Esc>", run = "close", desc = "Cancel input" },
+    { on = "<Enter>", run = "close --submit", desc = "Submit input" },
+    { on = "<Backspace>", run = "backspace", desc = "Delete previous character" },
+    { on = "<C-w>", run = "kill-word", desc = "Delete previous word" },
+    { on = "<C-u>", run = "kill-bol", desc = "Delete to beginning of line" },
+]
+
+[confirm]
+keymap = [
+    { on = "y", run = "close --submit", desc = "Confirm deletion" },
+    { on = "<Enter>", run = "close --submit", desc = "Confirm deletion" },
+    { on = "n", run = "close", desc = "Cancel deletion" },
+    { on = "<Esc>", run = "close", desc = "Cancel deletion" },
+    { on = "q", run = "close", desc = "Cancel deletion" },
+]
+
+[help]
+keymap = [
+    { on = "j", run = "arrow next", desc = "Next line" },
+    { on = "k", run = "arrow prev", desc = "Previous line" },
+    { on = "<Down>", run = "arrow next", desc = "Next line" },
+    { on = "<Up>", run = "arrow prev", desc = "Previous line" },
+    { on = "<PageUp>", run = "arrow -100%", desc = "Previous page" },
+    { on = "<PageDown>", run = "arrow 100%", desc = "Next page" },
+    { on = "<Esc>", run = "close", desc = "Close help" },
+    { on = "q", run = "close", desc = "Close help" },
+    { on = "?", run = "close", desc = "Close help" },
+    { on = "<F1>", run = "close", desc = "Close help" },
+]
