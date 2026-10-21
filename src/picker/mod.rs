@@ -1,7 +1,16 @@
 //! Reusable TUI picker.
 
 pub mod action;
+pub mod options;
+pub mod popup;
+pub mod state;
 pub mod terminal;
+pub mod which;
+
+pub use options::PickerOptions;
+pub use popup::{InputPurpose, Popup};
+pub use state::{Exit, Preview, State};
+pub use which::Which;
 
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};

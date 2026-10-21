@@ -21,24 +21,24 @@
 ## 3. Configuration
 
 - [x] 3.1 Implement `config/paths.rs` resolution (`PANE_MUX_CONFIG_HOME` → `XDG_CONFIG_HOME/pane-mux` → `~/.config/pane-mux`, absolute-only overrides); verify unit tests for each branch
-- [ ] 3.2 Implement preset macro (debug reads from disk, release `include_str!`) and add `config-default.toml`; verify `cargo build --release` embeds presets (binary runs with no config dir)
+- [x] 3.2 Implement preset macro (debug reads from disk, release `include_str!`) and add `config-default.toml`; verify `cargo build --release` embeds presets (binary runs with no config dir)
 - [x] 3.3 Implement `toml::Table` deep-merge and typed `Config` (`[picker] preview_ratio` 1-99, `preview_position` top|bottom) with validation; verify tests for partial override and invalid ratio error
 - [x] 3.4 Implement `Key` parsing (string and crossterm `KeyEvent`), `Chord` (`on`/`run` one-or-many, `desc`) and `run` string → `Action` parsing; verify tests for `<C-u>`, `<PageUp>`, sequences, unknown key/command errors
 - [x] 3.5 Implement keymap layer merge (`keymap` replace, `prepend_keymap`, `append_keymap`) and author `keymap-default.toml` (picker/input/confirm/help per exploration); verify tests for the three configuration-spec keymap scenarios
 - [x] 3.6 Implement theme structs, `StyleDef` → ratatui `Style`, `[icons]`, and author `theme-default.toml` from the author's yazi theme; verify tests for partial theme override and custom icon
-- [ ] 3.7 Implement config loading entry point with error reporting (file path + message, exit 2); verify test with invalid TOML fixture via `PANE_MUX_CONFIG_HOME`
-- [ ] 3.8 Document config files, locations and defaults in `README.md`; verify examples parse by loading them in a test
+- [x] 3.7 Implement config loading entry point with error reporting (file path + message, exit 2); verify test with invalid TOML fixture via `PANE_MUX_CONFIG_HOME`
+- [x] 3.8 Document config files, locations and defaults in `README.md`; verify examples parse by loading them in a test
 
 ## 4. Picker core (state and actions)
 
-- [ ] 4.1 Implement `State` (tree, focused column, cursor ids per column, preview scroll, popup states, message) and derived "hovered" / "preview target" logic per spec; verify unit tests for preview selection per focused column
-- [ ] 4.2 Implement navigation actions (`arrow` next/prev/top/bot/N%, `focus` prev/next with boundaries) with id-based cursors; verify unit tests including boundary scenarios
-- [ ] 4.3 Implement refresh with cursor re-resolution by id and clamping when items vanish; verify unit tests with `FakeTmux` removing hovered item
-- [ ] 4.4 Implement which state machine for multi-key chords (prefix → candidates → filter → dispatch/dismiss); verify tests for `g g`, `d d` and an invalid second key
-- [ ] 4.5 Implement `pick` producing `Target` at the output level (flag or focused column) and `quit` producing cancel; verify unit tests for `--session` from pane column and default-level behaviour
-- [ ] 4.6 Implement create (session/window via input, empty name → tmux default, no-op on panes) and rename (prefilled input); verify tests against `FakeTmux`
-- [ ] 4.7 Implement remove with confirm popup and refusal for current session/window/pane; verify tests for confirmed, declined and refused cases
-- [ ] 4.8 Surface tmux operation errors as on-screen messages without exiting; verify test with `FakeTmux` returning an error
+- [x] 4.1 Implement `State` (tree, focused column, cursor ids per column, preview scroll, popup states, message) and derived "hovered" / "preview target" logic per spec; verify unit tests for preview selection per focused column
+- [x] 4.2 Implement navigation actions (`arrow` next/prev/top/bot/N%, `focus` prev/next with boundaries) with id-based cursors; verify unit tests including boundary scenarios
+- [x] 4.3 Implement refresh with cursor re-resolution by id and clamping when items vanish; verify unit tests with `FakeTmux` removing hovered item
+- [x] 4.4 Implement which state machine for multi-key chords (prefix → candidates → filter → dispatch/dismiss); verify tests for `g g`, `d d` and an invalid second key
+- [x] 4.5 Implement `pick` producing `Target` at the output level (flag or focused column) and `quit` producing cancel; verify unit tests for `--session` from pane column and default-level behaviour
+- [x] 4.6 Implement create (session/window via input, empty name → tmux default, no-op on panes) and rename (prefilled input); verify tests against `FakeTmux`
+- [x] 4.7 Implement remove with confirm popup and refusal for current session/window/pane; verify tests for confirmed, declined and refused cases
+- [x] 4.8 Surface tmux operation errors as on-screen messages without exiting; verify test with `FakeTmux` returning an error
 
 ## 5. Picker UI and event loop
 
