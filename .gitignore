@@ -58,3 +58,8 @@ vite.config.ts.timestamp-*
 result
 # .ref/
 .pi/
+
+
+# Added by cargo
+
+/target

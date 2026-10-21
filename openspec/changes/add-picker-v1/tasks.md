@@ -2,12 +2,12 @@
 
 ## 1. Rust project setup
 
-- [ ] 1.1 Run `cargo init --name pane-mux` at repo root (edition 2024, bin + `src/lib.rs`); verify `cargo run -- --help` builds and runs
-- [ ] 1.2 Add `rust-toolchain.toml` (stable, rustfmt, clippy) and `rustfmt.toml` (stable options only); verify `cargo fmt --check` passes
-- [ ] 1.3 Add `[lints]` to `Cargo.toml` (`clippy::all = "warn"`, `unsafe_code = "forbid"`); verify `cargo clippy -- -D warnings` passes on the skeleton
-- [ ] 1.4 Add dependencies (`clap` derive, `ratatui` with crossterm+serde, `crossterm` with `use-dev-tty`, `serde`, `toml`, `anyhow`, `ansi-to-tui`; dev `insta`); verify `cargo build` succeeds
-- [ ] 1.5 Add `justfile` with `fmt`, `lint`, `test`, `check` (fmt --check + clippy -D warnings + test) and ensure `/target` is gitignored and `Cargo.lock` committed; verify `just check` passes
-- [ ] 1.6 Create module skeleton per design D1 (`cli`, `commands`, `picker`, `tmux`, `config`) with empty modules; verify `cargo check` passes
+- [x] 1.1 Run `cargo init --name pane-mux` at repo root (edition 2024, bin + `src/lib.rs`); verify `cargo run -- --help` builds and runs
+- [x] 1.2 Add `rust-toolchain.toml` (stable, rustfmt, clippy) and `rustfmt.toml` (stable options only); verify `cargo fmt --check` passes
+- [x] 1.3 Add `[lints]` to `Cargo.toml` (`clippy::all = "warn"`, `unsafe_code = "forbid"`); verify `cargo clippy -- -D warnings` passes on the skeleton
+- [x] 1.4 Add dependencies (`clap` derive, `ratatui` with crossterm+serde, `crossterm` with `use-dev-tty`, `serde`, `toml`, `anyhow`, `ansi-to-tui`; dev `insta`); verify `cargo build` succeeds
+- [x] 1.5 Add `justfile` with `fmt`, `lint`, `test`, `check` (fmt --check + clippy -D warnings + test) and ensure `/target` is gitignored and `Cargo.lock` committed; verify `just check` passes
+- [x] 1.6 Create module skeleton per design D1 (`cli`, `commands`, `picker`, `tmux`, `config`) with empty modules; verify `cargo check` passes
 
 ## 2. tmux layer and spikes
 
