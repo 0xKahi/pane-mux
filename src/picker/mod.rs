@@ -5,6 +5,7 @@ pub mod options;
 pub mod popup;
 pub mod state;
 pub mod terminal;
+pub mod ui;
 pub mod which;
 
 pub use options::PickerOptions;
