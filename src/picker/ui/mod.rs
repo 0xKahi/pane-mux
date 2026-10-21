@@ -1,9 +1,23 @@
 //! Rendering. Pure functions of `&State`; no tmux calls, no mutation.
 
-use ratatui::{Frame, layout::Rect};
+mod columns;
+mod layout;
+mod popup;
+mod preview;
 
-use super::state::State;
-use crate::config::{PickerConfig, Theme};
+use ratatui::{
+    Frame,
+    layout::Rect,
+    style::Style,
+    text::{Line, Span},
+    widgets::{Block, Paragraph},
+};
+
+use super::{popup::Popup, state::State};
+use crate::{
+    config::{PickerConfig, Theme},
+    tmux::Level,
+};
 
 /// Heights the state needs for paging/scrolling, computed from the same layout as `render`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,11 +30,72 @@ pub struct Heights {
 
 /// Compute `Heights` for a terminal area. The event loop copies these into `State` before drawing.
 pub fn heights(area: Rect, config: &PickerConfig) -> Heights {
-    let _ = (area, config);
-    Heights { list: 10, preview: 10 }
+    let areas = layout::areas(area, config);
+    let block = Block::bordered();
+    Heights {
+        list: block.inner(areas.columns[0]).height,
+        preview: block.inner(areas.preview).height,
+    }
 }
 
 /// Draw the whole picker.
 pub fn render(frame: &mut Frame, state: &State, theme: &Theme, config: &PickerConfig) {
-    let _ = (frame, state, theme, config);
+    let areas = layout::areas(frame.area(), config);
+    frame.render_widget(
+        Paragraph::new(state.options.header.clone()).style(Style::from(&theme.picker.header)),
+        areas.header,
+    );
+    columns::render(frame, areas.columns, state, theme);
+    preview::render(frame, areas.preview, state, theme);
+    status(frame, areas.status, state, theme);
+    popup::render(frame, areas.main, state, theme);
 }
+
+fn status(frame: &mut Frame, area: Rect, state: &State, theme: &Theme) {
+    if let Some(message) = &state.message {
+        frame.render_widget(
+            Paragraph::new(format!("Error: {message}"))
+                .style(Style::from(&theme.status.overall).patch(Style::from(&theme.notify.error))),
+            area,
+        );
+        return;
+    }
+    let (mode, style) = if state.which.is_some() {
+        ("which", &theme.mode.normal)
+    } else {
+        match state.popup {
+            Some(Popup::Input { .. }) => ("input", &theme.mode.input),
+            Some(Popup::Confirm { .. }) => ("confirm", &theme.mode.confirm),
+            Some(Popup::Help { .. }) => ("help", &theme.mode.normal),
+            None => ("picker", &theme.mode.normal),
+        }
+    };
+    let level = match state.focus {
+        Level::Session => "session",
+        Level::Window => "window",
+        Level::Pane => "pane",
+    };
+    let target = state
+        .hovered()
+        .map(|t| t.at(state.focus))
+        .unwrap_or_default();
+    let line = Line::from(vec![
+        Span::styled(format!(" {mode} "), Style::from(style)),
+        Span::styled(format!(" {level} "), Style::from(&theme.status.label)),
+        Span::styled(format!("{target}  "), Style::from(&theme.status.message)),
+        Span::raw(match mode {
+            "input" => "Enter submit · Esc cancel",
+            "confirm" => "y confirm · n cancel",
+            "help" => "↑/↓ scroll · q close",
+            "which" => "next key · Esc cancel",
+            _ => "Enter select · q quit · ? help",
+        }),
+    ]);
+    frame.render_widget(
+        Paragraph::new(line).style(Style::from(&theme.status.overall)),
+        area,
+    );
+}
+
+#[cfg(test)]
+mod tests;

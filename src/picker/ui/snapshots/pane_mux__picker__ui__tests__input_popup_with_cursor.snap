@@ -1,0 +1,28 @@
+---
+source: src/picker/ui/tests.rs
+expression: terminal.backend()
+---
+"[Pick session]                                                                  "
+"┌Sessions─────────────────┐┌Windows─────────────────┐┌Panes────────────────────┐"
+"│ work                   ││󱂬 1: editor             ││ 0: nvim                │"
+"│ dotfiles               ││󱂬 2: server logs        ││ 2: zsh                 │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"│         ╭New session name:─────────────────────────────────────────╮         │"
+"└─────────│notes                                                     │─────────┘"
+"╭work:1.0─╰──────────────────────────────────────────────────────────╯─────────╮"
+"│red output                                                                    │"
+"│ready                                                                         │"
+"│$ cargo test                                                                  │"
+"│all tests passed                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"╰──────────────────────────────────────────────────────────────────────────────╯"
+" input  session work  Enter submit · Esc cancel                                 "

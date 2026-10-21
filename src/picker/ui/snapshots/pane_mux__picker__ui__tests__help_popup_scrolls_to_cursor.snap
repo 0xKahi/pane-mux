@@ -1,0 +1,28 @@
+---
+source: src/picker/ui/tests.rs
+expression: terminal.backend()
+---
+"[Pick session]                                                                  "
+"┌Sessions─────────────────┐┌Windows─────────────────┐┌Panes────────────────────┐"
+"│ w╭Help — picker bindings────────────────────────────────────────────────╮   │"
+"│ d│h                 Focus previous column                               │   │"
+"│   │<Left>            Focus previous column                               │   │"
+"│   │l                 Focus next column                                   │   │"
+"│   │<Right>           Focus next column                                   │   │"
+"│   │g g               Go to top                                           │   │"
+"│   │G                 Go to bottom                                        │   │"
+"│   │<PageUp>          Previous page                                       │   │"
+"│   │<PageDown>        Next page                                           │   │"
+"└───│<C-u>             Scroll preview up half a page                       │───┘"
+"╭wor│<C-d>             Scroll preview down half a page                     │───╮"
+"│red│<Enter>           Pick hovered target                                 │   │"
+"│rea│q                 Quit without picking                                │   │"
+"│$ c│<Esc>             Dismiss popup or message                            │   │"
+"│all│a                 Create session or window                            │   │"
+"│   │r                 Rename session or window                            │   │"
+"│   │d d               Delete hovered item                                 │   │"
+"│   │?                 Show help                                           │   │"
+"│   │<F1>              Show help                                           │   │"
+"│   ╰──────────────────────────────────────────────────────────────────────╯   │"
+"╰──────────────────────────────────────────────────────────────────────────────╯"
+" help  session work  ↑/↓ scroll · q close                                       "

@@ -1,21 +1,29 @@
 use std::process::ExitCode;
 
 use clap::Parser;
-use pane_mux::cli::{Cli, Command};
+use pane_mux::{
+    cli::{Cli, Command},
+    commands::{self, Outcome},
+    config,
+    tmux::TmuxCli,
+};
+
+fn execute(cli: Cli) -> anyhow::Result<Outcome> {
+    let loaded = config::load()?;
+    let tmux = TmuxCli::default();
+    match cli.command {
+        Command::Picker(args) => commands::picker::run(args.level(), &tmux, &loaded),
+        Command::SwitchSession => commands::switch_session::run(&tmux, &loaded),
+    }
+}
 
 fn main() -> ExitCode {
-    let cli = Cli::parse();
-    match cli.command {
-        Command::Picker => match pane_mux::picker::run_slice() {
-            Ok(Some(target)) => {
-                println!("{target}");
-                ExitCode::SUCCESS
-            }
-            Ok(None) => ExitCode::from(130),
-            Err(err) => {
-                eprintln!("pane-mux: {err:#}");
-                ExitCode::from(2)
-            }
-        },
+    match execute(Cli::parse()) {
+        Ok(Outcome::Done) => ExitCode::SUCCESS,
+        Ok(Outcome::Cancelled) => ExitCode::from(130),
+        Err(err) => {
+            eprintln!("pane-mux: {err:#}");
+            ExitCode::from(2)
+        }
     }
 }

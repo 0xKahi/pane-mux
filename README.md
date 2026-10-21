@@ -2,7 +2,48 @@
 
 A yazi-style terminal picker for tmux sessions, windows, and panes, written in Rust. It provides a three-column tree, a pane preview, configurable key bindings, and themes, with picked tmux targets intended for shell scripting.
 
-## TODO: commands
+## Commands
+
+Install from the project directory:
+
+```sh
+cargo install --path .
+```
+
+```text
+pane-mux picker [--session|--window|--pane]
+pane-mux switch-session
+```
+
+`picker` prints exactly one tmux target after closing the UI: a session name,
+`session:window_index`, or `session:window_index.pane_index`. Without a level
+flag, the focused column determines the output. The UI uses stderr (or
+`/dev/tty` when stderr is redirected), leaving stdout available for scripts.
+
+`switch-session` requires tmux and switches the current client to the picked
+target, including its window and pane when selected. It prints no target.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Picked successfully (and switched for `switch-session`) |
+| 130 | Cancelled without picking |
+| 2 | Error or invalid command-line usage |
+
+Capture a session and switch from a shell inside tmux:
+
+```sh
+selected=$(pane-mux picker --session) && tmux switch-client -t "$selected"
+```
+
+Add this binding to `~/.tmux.conf` to open the switcher in a popup:
+
+```tmux
+bind-key s display-popup -E -w 90% -h 90% "pane-mux switch-session"
+```
+
+For command help, run `pane-mux --help` or `pane-mux picker --help`.
+Level flags are mutually exclusive: `pane-mux picker --session --pane`
+prints a usage error without opening the UI.
 
 ## Configuration
 
@@ -14,7 +55,7 @@ The configuration directory is the first available of:
 
 Relative overrides are ignored. If no directory can be resolved, built-in defaults are used.
 
-The directory may contain `config.toml`, `keymap.toml`, and `theme.toml`. Each file is optional; a missing directory is fine. Invalid TOML, unknown fields, invalid commands, and invalid values are errors naming the file. The loader is implemented; command integration is still pending.
+The directory may contain `config.toml`, `keymap.toml`, and `theme.toml`. Each file is optional; a missing directory is fine. Invalid TOML, unknown fields, invalid commands, and invalid values are errors naming the file; pane-mux then exits with code 2.
 
 ### Picker settings
 

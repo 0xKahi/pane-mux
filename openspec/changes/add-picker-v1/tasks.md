@@ -42,24 +42,24 @@
 
 ## 5. Picker UI and event loop
 
-- [ ] 5.1 Implement layout (header, columns, preview area ordered by `preview_position`/`preview_ratio`, status line); verify `insta` snapshots for bottom/50 and top/75
-- [ ] 5.2 Render three columns with icons, hovered/unfocused/current styles; verify snapshot with a fake tree incl. current markers
-- [ ] 5.3 Render preview (`ansi-to-tui`, rounded border, title target, scroll offset, self-pane placeholder); verify snapshots for coloured content and placeholder
-- [ ] 5.4 Render popups: which, input, confirm, help, and error message; verify snapshots for each
-- [ ] 5.5 Implement terminal setup on stderr + `/dev/tty` input, restore on exit and on panic (panic hook); verify manually that `x=$(pane-mux picker)` shows the UI and the terminal is clean after `q` and after a forced panic
-- [ ] 5.6 Implement synchronous loop (poll keys with ~300 ms tick, refresh tree + preview, redraw only when dirty); verify manually that an external `tmux new-session -d -s extra` appears within ~1 s
+- [x] 5.1 Implement layout (header, columns, preview area ordered by `preview_position`/`preview_ratio`, status line); verify `insta` snapshots for bottom/50 and top/75
+- [x] 5.2 Render three columns with icons, hovered/unfocused/current styles; verify snapshot with a fake tree incl. current markers
+- [x] 5.3 Render preview (`ansi-to-tui`, rounded border, title target, scroll offset, self-pane placeholder); verify snapshots for coloured content and placeholder
+- [x] 5.4 Render popups: which, input, confirm, help, and error message; verify snapshots for each
+- [x] 5.5 Implement terminal setup on stderr + `/dev/tty` input, restore on exit and on panic (panic hook); verify manually that `x=$(pane-mux picker)` shows the UI and the terminal is clean after `q` and after a forced panic
+- [x] 5.6 Implement synchronous loop (poll keys with ~300 ms tick, refresh tree + preview, redraw only when dirty); verify manually that an external `tmux new-session -d -s extra` appears within ~1 s
 
 ## 6. Commands
 
-- [ ] 6.1 Implement `cli.rs` with `picker [--session|--window|--pane]` (mutually exclusive) and `switch-session`; verify `--session --pane` exits 2 with usage error
-- [ ] 6.2 Implement `main.rs` outcome mapping: pick → print target + exit 0, cancel → exit 130, error → stderr + exit 2; verify integration test with no tmux server (`TMUX_TMPDIR` temp dir) exits 2
-- [ ] 6.3 Implement `commands/picker.rs` (header `[Pick <level>]`, print target to stdout); verify manually `selected=$(pane-mux picker --session); echo "$selected"` prints only the name
+- [x] 6.1 Implement `cli.rs` with `picker [--session|--window|--pane]` (mutually exclusive) and `switch-session`; verify `--session --pane` exits 2 with usage error
+- [x] 6.2 Implement `main.rs` outcome mapping: pick → print target + exit 0, cancel → exit 130, error → stderr + exit 2; verify integration test with no tmux server (`TMUX_TMPDIR` temp dir) exits 2
+- [x] 6.3 Implement `commands/picker.rs` (header `[Pick <level>]`, print target to stdout); verify manually `selected=$(pane-mux picker --session); echo "$selected"` prints only the name
 - [ ] 6.4 Implement `commands/switch_session.rs` (require `$TMUX`, header `[Switch]`, single `switch-client -t <target>`); verify outside-tmux error exits 2 and manual popup switch via `tmux display-popup -E "pane-mux switch-session"`
-- [ ] 6.5 Document commands, exit codes, scripting example and a `display-popup` tmux binding in `README.md`; verify commands in README run as written
+- [x] 6.5 Document commands, exit codes, scripting example and a `display-popup` tmux binding in `README.md`; verify commands in README run as written
 
 ## 7. Integration check
 
-- [ ] 7.1 Run `just check` and the opt-in tmux integration tests; verify all pass
+- [x] 7.1 Run `just check` and the opt-in tmux integration tests; verify all pass
 - [ ] 7.2 `cargo install --path .` and walk through every tmux-picker and session-switching spec scenario manually in a popup and in a regular pane; verify each scenario's THEN holds
 
 ## Workflow follow-up
