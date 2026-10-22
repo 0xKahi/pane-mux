@@ -2,10 +2,14 @@
 # green/blue mode labels, and yellow/red input and confirmation frames.
 [picker]
 border = { fg = "gray" }
-hovered = { reversed = true }
-hovered_unfocused = { underline = true }
-current = { fg = "lightgreen", bold = true }
+hovered = { reversed = true, bold = true }
+hovered_unfocused = { reversed = true }
 header = { fg = "lightgreen" }
+
+[indicator]
+# Exact Powerline caps from the user's yazi theme, preserved as Unicode escapes.
+padding = { open = "\uE0B6", close = "\uE0B4" }
+active = { text = "*", fg = "magenta" }
 
 [preview]
 border = { fg = "gray" }
@@ -13,7 +17,7 @@ title = { fg = "lightcyan" }
 
 [icons]
 # The spec's session and pane glyphs are empty; use Nerd Font fallbacks.
-session = { text = "", fg = "#82AAFF" }
+session = { text = "", fg = "#82AAFF" }
 window = { text = "󱂬", fg = "lightcyan" }
 pane = { text = "", fg = "lightgreen" }
 

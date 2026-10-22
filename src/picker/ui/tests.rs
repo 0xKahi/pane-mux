@@ -90,20 +90,26 @@ fn bottom_50_layout_and_current_columns() {
     insta::assert_snapshot!(terminal.backend());
     let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
     let buffer = terminal.backend().buffer();
-    let current = &buffer[(areas.columns[0].x + 3, areas.columns[0].y + 1)];
-    assert_eq!(current.fg, theme.picker.current.fg.unwrap());
+    for area in areas.columns {
+        let icon = &buffer[(area.x + 5, area.y + 1)];
+        let name = &buffer[(area.x + 7, area.y + 1)];
+        let marker = &buffer[(area.x + 3, area.y + 1)];
+        assert_eq!(
+            (icon.bg, icon.fg, icon.modifier),
+            (name.bg, name.fg, name.modifier)
+        );
+        assert_eq!(
+            (marker.bg, marker.fg, marker.modifier),
+            (name.bg, name.fg, name.modifier)
+        );
+        assert!(name.modifier.contains(Modifier::REVERSED));
+    }
+    assert!(buffer[(7, 2)].modifier.contains(Modifier::BOLD));
     assert!(
-        current
+        !buffer[(areas.columns[1].x + 7, 2)]
             .modifier
-            .contains(Modifier::BOLD | Modifier::REVERSED)
+            .contains(Modifier::BOLD)
     );
-    let child = &buffer[(areas.columns[1].x + 3, areas.columns[1].y + 1)];
-    assert!(
-        child
-            .modifier
-            .contains(Modifier::UNDERLINED | Modifier::BOLD)
-    );
-    assert_eq!(buffer[(1, 2)].fg, theme.icons.session.fg.unwrap());
 }
 
 #[test]
@@ -277,4 +283,97 @@ fn tiny_terminals_do_not_panic() {
             preview: 0
         }
     );
+}
+
+#[test]
+fn hovered_caps_use_highlight_colour_at_inner_edges() {
+    let (mut state, _, mut theme, config, _) = fixture();
+    for (reversed, fg, bg, expected) in [
+        (true, Some(Color::Cyan), Some(Color::Blue), Color::Cyan),
+        (true, None, None, Color::Reset),
+        (false, None, Some(Color::Blue), Color::Blue),
+    ] {
+        theme.picker.hovered.reversed = Some(reversed);
+        theme.picker.hovered.fg = fg;
+        theme.picker.hovered.bg = bg;
+        let terminal = draw(&mut state, &theme, &config);
+        let area =
+            Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[0]);
+        let buffer = terminal.backend().buffer();
+        for (x, symbol) in [(area.x, "\u{e0b6}"), (area.right() - 1, "\u{e0b4}")] {
+            let cap = &buffer[(x, area.y)];
+            assert_eq!(cap.symbol(), symbol);
+            assert_eq!(cap.fg, expected);
+            assert_eq!(cap.bg, Color::Reset);
+            assert!(cap.modifier.is_empty());
+        }
+        assert_eq!(buffer[(area.x, area.y + 1)].symbol(), " ");
+        assert_eq!(buffer[(area.right() - 1, area.y + 1)].symbol(), " ");
+    }
+}
+
+#[test]
+fn custom_caps_and_long_names_keep_right_edge() {
+    let (mut state, _, _, config, _) = fixture();
+    let theme = Theme::from_toml(
+        &preset::theme(),
+        Some("[indicator]\npadding = { open = '<', close = '>' }"),
+    )
+    .unwrap();
+    state.tree.sessions[0].name = "a very long session name that must be clipped".into();
+    let terminal = draw(&mut state, &theme, &config);
+    insta::assert_snapshot!(terminal.backend());
+    let area = Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[0]);
+    assert_eq!(terminal.backend().buffer()[(area.x, area.y)].symbol(), "<");
+    assert_eq!(
+        terminal.backend().buffer()[(area.right() - 1, area.y)].symbol(),
+        ">"
+    );
+}
+
+#[test]
+fn wide_caps_reserve_display_width_and_plain_highlight_uses_spaces() {
+    let (mut state, _, mut theme, config, _) = fixture();
+    theme.indicator.padding.open = "界".into();
+    theme.indicator.padding.close = "界>".into();
+    state.tree.sessions[0].name = "界".repeat(40);
+    let terminal = draw(&mut state, &theme, &config);
+    let area = Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[0]);
+    assert_eq!(terminal.backend().buffer()[(area.x, area.y)].symbol(), "界");
+    assert_eq!(
+        terminal.backend().buffer()[(area.right() - 3, area.y)].symbol(),
+        "界"
+    );
+    assert_eq!(
+        terminal.backend().buffer()[(area.right() - 1, area.y)].symbol(),
+        ">"
+    );
+    theme.picker.hovered.reversed = Some(false);
+    theme.picker.hovered.bg = None;
+    let terminal = draw(&mut state, &theme, &config);
+    assert_eq!(terminal.backend().buffer()[(area.x, area.y)].symbol(), " ");
+    assert_eq!(
+        terminal.backend().buffer()[(area.right() - 1, area.y)].symbol(),
+        " "
+    );
+}
+
+#[test]
+fn unhovered_current_marker_is_magenta_but_name_is_unstyled() {
+    let (mut state, fake, theme, config, keymap) = fixture();
+    press(&mut state, &fake, &keymap, "j");
+    let terminal = draw(&mut state, &theme, &config);
+    insta::assert_snapshot!(terminal.backend());
+    let buffer = terminal.backend().buffer();
+    let marker = &buffer[(3, 2)];
+    assert_eq!(marker.symbol(), "*");
+    assert_eq!(marker.fg, Color::Magenta);
+    let name = &buffer[(7, 2)];
+    assert_eq!(name.symbol(), "w");
+    assert_eq!(name.fg, Color::Reset);
+    assert_eq!(name.bg, Color::Reset);
+    assert!(name.modifier.is_empty());
+    assert_eq!(buffer[(5, 2)].fg, theme.icons.session.fg.unwrap());
+    assert_eq!(buffer[(3, 3)].symbol(), " ");
+    assert_eq!(buffer[(7, 3)].symbol(), "d");
 }

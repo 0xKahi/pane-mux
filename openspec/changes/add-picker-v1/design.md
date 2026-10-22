@@ -106,7 +106,7 @@ Requires `$TMUX`; otherwise error before opening the UI. The picked target strin
 `picker`: `escape`, `quit`, `arrow <next|prev|top|bot|N|N%>`, `focus <prev|next>`, `seek <N%>`, `pick`, `create`, `rename`, `remove`, `help`. `input`: `close [--submit]`, `backspace`, `kill-word`, `kill-bol`, character insertion is implicit. `confirm`: `close [--submit]`. `help`: `arrow`, `close`. One `enum Action` + one `match` in `apply()`; no actor/registry layer.
 
 ### D12. Theme
-Structs mirror the default `theme.toml` sections: `[picker]` (border, hovered, hovered_unfocused, current, header), `[preview]` (border, title), `[icons]` (session/window/pane `{ text, fg }`), `[mode]`, `[status]`, `[which]`, `[confirm]`, `[input]`, `[help]`, `[notify]`. Colours via ratatui's `serde` feature (named, `#rrggbb`, `reset`); a small `StyleDef { fg, bg, bold, italic, underline, reversed, dim }` → `ratatui::style::Style`. Defaults taken from the author's yazi theme.
+Structs mirror the default `theme.toml` sections: `[picker]` (border, hovered, hovered_unfocused, header), `[preview]` (border, title), `[icons]` (session/window/pane `{ text, fg }`), `[indicator]` (`padding { open, close }` yazi-style hovered-row caps; `active { text, fg }` current-item marker), `[mode]`, `[status]`, `[which]`, `[confirm]`, `[input]`, `[help]`, `[notify]`. Colours via ratatui's `serde` feature (named, `#rrggbb`, `reset`); a small `StyleDef { fg, bg, bold, italic, underline, reversed, dim }` → `ratatui::style::Style`. Defaults taken from the author's yazi theme.
 
 ### D13. Layout
 ```

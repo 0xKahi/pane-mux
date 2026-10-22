@@ -108,11 +108,22 @@ Quitting without picking SHALL print nothing to stdout and exit with code 130. E
 - **THEN** the picker prints an error to stderr and exits with code 2
 
 ### Requirement: Current-item markers
-The picker SHALL visually mark the current session, window and pane (those of the tmux client the picker belongs to) using the theme's current style.
+The picker SHALL mark the current session, window and pane (those of the tmux client the picker belongs to) with the theme's active indicator text (default `*`, magenta) placed before the icon, so a row reads `* <icon> <name>`. Rows that are not current SHALL reserve the same width so names stay aligned. The current item's name SHALL NOT be restyled.
 
 #### Scenario: Current session marked
 - **WHEN** the picker is opened from client attached to session `work`
-- **THEN** `work` is rendered with the current style
+- **THEN** the `work` row reads `* <icon> work` with `*` in the active indicator colour
+
+### Requirement: Hovered-row indicator
+The hovered row of each column SHALL be drawn with a single uniform highlight across its whole width: the icon, active marker and name SHALL NOT keep their own colours on the hovered row, so the background is the same behind all of them. Like yazi, the row SHALL start with the theme's `[indicator] padding.open` text and end with `padding.close`, drawn in the highlight colour against the terminal background; unhovered rows SHALL use a space in those positions.
+
+#### Scenario: Uniform hover background
+- **WHEN** a session row with a coloured icon is hovered
+- **THEN** the icon cell and the name cells have the same background
+
+#### Scenario: Rounded padding
+- **WHEN** the theme sets `[indicator] padding = { open = "<", close = ">" }` and a row is hovered
+- **THEN** that row begins with `<` and ends with `>` at the column's right edge
 
 ### Requirement: Create session and window
 The picker SHALL let the user create a session (sessions column focused) or a window in the hovered session (windows column focused) via a name input prompt. Submitting an empty name SHALL use tmux's default naming. Creation SHALL be a no-op when the panes column is focused.

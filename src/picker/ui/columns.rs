@@ -3,13 +3,16 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Style,
+    style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, List, ListItem, ListState},
+    widgets::{Block, Paragraph},
 };
 
 use crate::{
-    config::{Theme, theme::Icon},
+    config::{
+        Theme,
+        theme::{Icon, StyleDef},
+    },
     picker::State,
     tmux::Level,
 };
@@ -53,41 +56,105 @@ fn column(
         Level::Window => ("Windows", state.window.as_deref()),
         Level::Pane => ("Panes", state.pane.as_deref()),
     };
-    let selection = rows
-        .iter()
-        .position(|(id, _)| Some(id.as_str()) == selected);
-    let items: Vec<ListItem> = rows
-        .into_iter()
-        .map(|(id, label)| {
-            let mut style = Style::default();
-            if state.is_current(&id) {
-                style = style.patch(Style::from(&theme.picker.current));
-            }
-            if Some(id.as_str()) == selected {
-                let hover = if state.focus == level {
-                    &theme.picker.hovered
-                } else {
-                    &theme.picker.hovered_unfocused
-                };
-                style = style.patch(Style::from(hover));
-            }
-            let mut spans = Vec::new();
-            if !icon.text.is_empty() {
-                let mut icon_style = Style::default();
-                if let Some(fg) = icon.fg {
-                    icon_style = icon_style.fg(fg);
-                }
-                spans.push(Span::styled(format!("{} ", icon.text), icon_style));
-            }
-            spans.push(Span::raw(label));
-            ListItem::new(Line::from(spans)).style(style)
-        })
-        .collect();
     let block = Block::bordered()
         .title(title)
         .border_style(Style::from(&theme.picker.border));
-    let list = List::new(items).block(block);
-    // Widget-local state scrolls to the selected row without mutating picker state.
-    let mut list_state = ListState::default().with_selected(selection);
-    frame.render_stateful_widget(list, area, &mut list_state);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    let selection = rows
+        .iter()
+        .position(|(id, _)| Some(id.as_str()) == selected)
+        .unwrap_or(0);
+    let offset = selection
+        .saturating_add(1)
+        .saturating_sub(usize::from(inner.height));
+    for (row, (id, label)) in rows
+        .into_iter()
+        .skip(offset)
+        .take(usize::from(inner.height))
+        .enumerate()
+    {
+        let hovered = Some(id.as_str()) == selected;
+        let hover = if state.focus == level {
+            &theme.picker.hovered
+        } else {
+            &theme.picker.hovered_unfocused
+        };
+        let style = if hovered {
+            Style::from(hover)
+        } else {
+            Style::default()
+        };
+        let cap_color = if hovered {
+            highlight_color(hover)
+        } else {
+            None
+        };
+        let (open, close) = if cap_color.is_some() {
+            (
+                theme.indicator.padding.open.as_str(),
+                theme.indicator.padding.close.as_str(),
+            )
+        } else {
+            (" ", " ")
+        };
+        let y = inner.y + row as u16;
+        let open_width = Span::raw(open).width().min(usize::from(inner.width)) as u16;
+        let close_width = Span::raw(close)
+            .width()
+            .min(usize::from(inner.width - open_width)) as u16;
+        let content_area = Rect::new(
+            inner.x + open_width,
+            y,
+            inner.width - open_width - close_width,
+            1,
+        );
+        let marker = &theme.indicator.active;
+        let marker_text = if state.is_current(&id) {
+            marker.text.clone()
+        } else {
+            " ".repeat(Span::raw(&marker.text).width())
+        };
+        let marker_style = if hovered {
+            Style::default()
+        } else {
+            Style::from(&marker.style)
+        };
+        let mut spans = vec![
+            Span::raw(" "),
+            Span::styled(marker_text, marker_style),
+            Span::raw(" "),
+        ];
+        if !icon.text.is_empty() {
+            let icon_style = if hovered {
+                Style::default()
+            } else {
+                Style::default().fg(icon.fg.unwrap_or(Color::Reset))
+            };
+            spans.push(Span::styled(format!("{} ", icon.text), icon_style));
+        }
+        spans.push(Span::raw(label));
+        // Separate regions clip long labels before the right cap, including wide glyphs.
+        frame.render_widget(Paragraph::new(Line::from(spans)).style(style), content_area);
+        let cap_style = Style::default()
+            .fg(cap_color.unwrap_or(Color::Reset))
+            .bg(Color::Reset);
+        frame.render_widget(
+            Paragraph::new(open).style(cap_style),
+            Rect::new(inner.x, y, open_width, 1),
+        );
+        frame.render_widget(
+            Paragraph::new(close).style(cap_style),
+            Rect::new(inner.right() - close_width, y, close_width, 1),
+        );
+    }
+}
+
+// Reversal uses the foreground as the visible background; caps must not be reversed.
+fn highlight_color(style: &StyleDef) -> Option<Color> {
+    if style.reversed == Some(true) {
+        Some(style.fg.unwrap_or(Color::Reset))
+    } else {
+        style.bg
+    }
 }

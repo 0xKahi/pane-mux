@@ -116,7 +116,8 @@ Styles accept optional `fg`, `bg`, `bold`, `italic`, `underline`, `reversed`, an
 
 Theme sections and style keys:
 
-- `[picker]`: `border`, `hovered`, `hovered_unfocused`, `current`, `header`
+- `[picker]`: `border`, `hovered`, `hovered_unfocused`, `header`
+- `[indicator]`: `padding = { open, close }`, `active = { text, fg, ... }`
 - `[preview]`: `border`, `title`
 - `[mode]`: `normal`, `input`, `confirm`
 - `[status]`: `overall`, `label`, `message`
@@ -128,13 +129,21 @@ Theme sections and style keys:
 
 `[icons]` has `session`, `window`, and `pane` tables with `text` and optional `fg`. Override just `text` to preserve the preset colour. Empty text hides an icon. Default glyphs require a Nerd Font; plain text alternatives work too.
 
+`[indicator] padding` sets the hovered-row caps (defaults `"\uE0B6"` and `"\uE0B4"`, matching yazi). Either side can be overridden independently. Caps use the highlight colour against the terminal background; styles without a background or reversal use spaces instead. `active` sets the current-item marker (default `*`, magenta) and accepts the same style fields listed above. Non-current rows reserve the marker's display width. Names are not restyled for current items.
+
+Hovered rows use one uniform style for marker, icon, name, and fill. The focused default is reversed and bold; other columns use reversed without bold. Unhovered icons and markers retain their own colours. A default row reads `cap + space + marker + space + icon + space + name + fill + cap`; unhovered caps are spaces.
+
 <!-- theme.toml -->
 ```toml
 [preview]
 border = { fg = "#82aaff" }
 
 [picker]
-hovered = { bold = true, reversed = false }
+hovered = { bold = true, reversed = false, bg = "blue" }
+
+[indicator]
+padding = { open = "<", close = ">" }
+active = { text = "*", fg = "magenta" }
 
 [icons]
 session = { text = "S" }

@@ -1,0 +1,28 @@
+---
+source: src/picker/ui/tests.rs
+expression: terminal.backend()
+---
+"[Pick session]                                                                  "
+"┌Sessions─────────────────┐┌Windows─────────────────┐┌Panes────────────────────┐"
+"│< *  a very long sessio>││< * 󱂬 1: editor        >││< *  0: nvim           >│"
+"│     dotfiles           ││    󱂬 2: server logs    ││     2: zsh             │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"│                         ││                        ││                         │"
+"└─────────────────────────┘└────────────────────────┘└─────────────────────────┘"
+"╭a very long session name that must be clipped:1.0─────────────────────────────╮"
+"│red output                                                                    │"
+"│ready                                                                         │"
+"│$ cargo test                                                                  │"
+"│all tests passed                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"╰──────────────────────────────────────────────────────────────────────────────╯"
+" picker  session a very long session name that must be clipped  Enter select · q"

@@ -4,8 +4,8 @@ expression: terminal.backend()
 ---
 "[Pick session]                                                                  "
 "┌Sessions─────────────────┐┌Windows─────────────────┐┌Panes────────────────────┐"
-"│ work                   ││󱂬 0: shell              ││ 0: sh                  │"
-"│ dotfiles               ││                        ││                         │"
+"│  *  work               ││   󱂬 0: shell         ││    0: sh             │"
+"│    dotfiles          ││                        ││                         │"
 "│                         ││                        ││                         │"
 "│                         ││                        ││                         │"
 "│                         ││                        ││                         │"

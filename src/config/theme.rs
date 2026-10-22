@@ -53,6 +53,7 @@ pub struct Theme {
     pub picker: PickerTheme,
     pub preview: PreviewTheme,
     pub icons: Icons,
+    pub indicator: IndicatorTheme,
     pub mode: ModeTheme,
     pub status: StatusTheme,
     pub which: WhichTheme,
@@ -78,7 +79,6 @@ pub struct PickerTheme {
     pub border: StyleDef,
     pub hovered: StyleDef,
     pub hovered_unfocused: StyleDef,
-    pub current: StyleDef,
     pub header: StyleDef,
 }
 
@@ -105,6 +105,40 @@ pub struct Icons {
     pub session: Icon,
     pub window: Icon,
     pub pane: Icon,
+}
+
+/// Hovered-row caps and the current-item marker.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IndicatorTheme {
+    pub padding: IndicatorPadding,
+    pub active: ActiveIndicator,
+}
+
+/// Cap text; either omitted side retains its default glyph.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct IndicatorPadding {
+    pub open: String,
+    pub close: String,
+}
+
+impl Default for IndicatorPadding {
+    fn default() -> Self {
+        Self {
+            open: "\u{e0b6}".into(),
+            close: "\u{e0b4}".into(),
+        }
+    }
+}
+
+/// Marker text with the same optional colour/modifier fields as other styles.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActiveIndicator {
+    pub text: String,
+    #[serde(flatten)]
+    pub style: StyleDef,
 }
 
 /// Active layer label in the status line.
@@ -196,6 +230,24 @@ mod tests {
         let actual =
             Theme::from_toml(&preset::theme(), Some("[icons]\nsession = { text = 'S' }")).unwrap();
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn partial_indicator_override_preserves_other_defaults() {
+        let mut expected = Theme::from_toml(&preset::theme(), None).unwrap();
+        expected.indicator.padding.open = "<".into();
+        expected.indicator.active.style.bold = Some(true);
+        let actual = Theme::from_toml(
+            &preset::theme(),
+            Some("[indicator]\npadding = { open = '<' }\nactive = { bold = true }"),
+        )
+        .unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(actual.indicator.padding.close, "\u{e0b4}");
+        assert_eq!(actual.indicator.active.text, "*");
+        assert_eq!(actual.indicator.active.style.fg, Some(Color::Magenta));
+        let padding: IndicatorPadding = toml::from_str("open = '<'").unwrap();
+        assert_eq!(padding.close, "\u{e0b4}");
     }
 
     #[test]
