@@ -7,7 +7,7 @@ Lets users browse, preview and manage their tmux sessions, windows and panes fro
 ## ADDED Requirements
 
 ### Requirement: Three-column tmux tree
-The picker SHALL display three always-visible columns: sessions, windows of the hovered session, and panes of the hovered window. Each row SHALL be prefixed with its level icon (session ``, window `󱂬`, pane ``) unless the theme overrides it. On open, the sessions column SHALL be focused.
+The picker SHALL display three always-visible columns: sessions, windows of the hovered session, and panes of the hovered window. Each row SHALL be prefixed with its level icon (session `` (U+F489), window `󱂬` (U+F10AC), pane `` (U+EBC8); Nerd Font glyphs) unless the theme overrides it. On open, the sessions column SHALL be focused.
 
 #### Scenario: Initial view
 - **WHEN** the user runs `pane-mux picker` with tmux sessions `work` and `dotfiles`

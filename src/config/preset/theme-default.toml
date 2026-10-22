@@ -20,10 +20,10 @@ border = { fg = "gray" }
 title = { fg = "lightcyan" }
 
 [icons]
-# The spec's session and pane glyphs are empty; use Nerd Font fallbacks.
-session = { text = "", fg = "#82AAFF" }
-window = { text = "󱂬", fg = "lightcyan" }
-pane = { text = "", fg = "lightgreen" }
+# Nerd Font glyphs, stored as Unicode escapes so they can't be lost in copy/paste.
+session = { text = "\uF489", fg = "#82AAFF" }
+window = { text = "\U000F10AC", fg = "lightcyan" }
+pane = { text = "\uEBC8", fg = "lightgreen" }
 
 [mode]
 normal = { bg = "blue", fg = "#1b1d2b", bold = true }
