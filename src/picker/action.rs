@@ -27,6 +27,11 @@ pub enum Action {
     /// Open the help popup.
     Help,
 
+    /// Open an incremental name finder.
+    Find { previous: bool, case: Case },
+    /// Jump to another match in the focused column.
+    FindArrow { previous: bool },
+
     // --- input / confirm / help layers ---
     /// Close the popup; `submit: true` accepts it (`close --submit`).
     Close { submit: bool },
@@ -36,6 +41,14 @@ pub enum Action {
     KillWord,
     /// Delete everything before the cursor.
     KillBol,
+}
+
+/// Case handling for find queries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Case {
+    Sensitive,
+    Insensitive,
+    Smart,
 }
 
 /// Argument of `arrow`: `next`, `prev`, `top`, `bot`, `N` or `N%` (N may be negative).

@@ -67,6 +67,240 @@ fn type_text(state: &mut State, fake: &FakeTmux, text: &str) {
     }
 }
 
+fn find(state: &mut State, fake: &FakeTmux, query: &str, previous: bool, case: Case) {
+    state.apply(&Action::Find { previous, case }, fake);
+    type_text(state, fake, query);
+}
+
+#[test]
+fn default_find_bindings_and_which_listing() {
+    let fake = fixture();
+    let mut state = state(&fake);
+    let map = Keymap::from_toml(&preset::keymap(), None).unwrap();
+    for (keys, action) in [
+        (
+            vec!["<Space>", "/"],
+            Action::Find {
+                previous: false,
+                case: Case::Smart,
+            },
+        ),
+        (vec!["n"], Action::FindArrow { previous: false }),
+        (vec!["N"], Action::FindArrow { previous: true }),
+    ] {
+        let keys: Vec<Key> = keys.into_iter().map(|k| k.parse().unwrap()).collect();
+        let chord = map.picker.iter().find(|c| c.on == keys).unwrap();
+        assert_eq!(chord.run, vec![action]);
+        assert!(chord.desc.is_some());
+    }
+    key(&mut state, &fake, "<Space>");
+    let which = state.which.as_ref().unwrap();
+    assert_eq!(which.candidates[0].on[1], "/".parse().unwrap());
+    key(&mut state, &fake, "/");
+    assert!(state.which.is_none());
+    assert!(
+        matches!(state.popup, Some(Popup::Input { ref title, ref value, purpose: InputPurpose::Find { previous: false, case: Case::Smart } }) if title == "Find next:" && value.is_empty())
+    );
+}
+
+#[test]
+fn find_prompt_enter_and_escape_keep_finder_and_cursor_without_submit_effects() {
+    for close in ["<Enter>", "<Esc>"] {
+        let fake = fixture();
+        let mut state = state(&fake);
+        find(&mut state, &fake, "dot", false, Case::Smart);
+        assert_eq!(state.session.as_deref(), Some("$1"));
+        let finder = state.finder.clone();
+        let calls = fake.calls();
+        key(&mut state, &fake, close);
+        assert!(state.popup.is_none());
+        assert_eq!(state.finder, finder);
+        assert_eq!(state.session.as_deref(), Some("$1"));
+        assert_eq!(fake.calls(), calls);
+    }
+}
+
+#[test]
+fn find_incremental_wrap_include_no_match_and_child_preview() {
+    let fake =
+        FakeTmux::new(sample_tree(&["api", "logs", "work"])).with_capture("%0", "api preview");
+    let mut state = state(&fake);
+    key(&mut state, &fake, "G");
+    find(&mut state, &fake, "a", false, Case::Smart);
+    assert_eq!(state.session.as_deref(), Some("$0"));
+    assert_eq!(state.window.as_deref(), Some("@0"));
+    assert_eq!(state.pane.as_deref(), Some("%0"));
+    assert_eq!(state.preview.pane_id.as_deref(), Some("%0"));
+    assert_eq!(state.preview.content, "api preview");
+    key(&mut state, &fake, "<C-u>");
+    assert!(state.finder.is_none());
+    type_text(&mut state, &fake, "lo");
+    assert_eq!(state.session.as_deref(), Some("$1"));
+    type_text(&mut state, &fake, "g");
+    assert_eq!(state.session.as_deref(), Some("$1"));
+    key(&mut state, &fake, "<C-u>");
+    type_text(&mut state, &fake, "zzz");
+    assert_eq!(state.session.as_deref(), Some("$1"));
+    assert_eq!(state.finder.as_ref().unwrap().query, "zzz");
+    key(&mut state, &fake, "<Esc>");
+    find(&mut state, &fake, "a", true, Case::Smart);
+    assert_eq!(state.session.as_deref(), Some("$0"));
+    assert!(
+        matches!(state.popup, Some(Popup::Input { ref title, .. }) if title == "Find previous:")
+    );
+}
+
+#[test]
+fn find_names_exclude_window_indexes_and_use_pane_commands() {
+    let fake = fixture();
+    let mut state = state(&fake);
+    assert_eq!(state.names(Level::Session)[0], ("$0".into(), "work"));
+    key(&mut state, &fake, "l");
+    assert_eq!(state.names(Level::Window)[1], ("@10".into(), "editor"));
+    assert_eq!(state.names(Level::Pane)[0], ("%10".into(), "nvim"));
+    find(&mut state, &fake, "1", false, Case::Sensitive);
+    assert!(
+        state.names(Level::Window).iter().all(|(_, n)| state
+            .finder
+            .as_ref()
+            .unwrap()
+            .matched(n)
+            .is_none())
+    );
+    assert_eq!(state.window.as_deref(), Some("@10"));
+    key(&mut state, &fake, "<Esc>");
+    key(&mut state, &fake, "l");
+    find(&mut state, &fake, "sh", false, Case::Sensitive);
+    assert_eq!(state.pane.as_deref(), Some("%11"));
+}
+
+#[test]
+fn find_regex_smart_case_invalid_and_unchanged_queries() {
+    let fake = FakeTmux::new(sample_tree(&["api", "Work", "work", "dotfiles", "logs"]));
+    let mut state = state(&fake);
+    find(&mut state, &fake, "work", false, Case::Smart);
+    assert_eq!(state.session.as_deref(), Some("$1"));
+    key(&mut state, &fake, "<C-u>");
+    type_text(&mut state, &fake, "Work");
+    assert_eq!(state.finder.as_ref().unwrap().matched("work"), None);
+    key(&mut state, &fake, "<C-u>");
+    type_text(&mut state, &fake, "^d.t");
+    assert_eq!(state.session.as_deref(), Some("$3"));
+    key(&mut state, &fake, "<C-u>");
+    type_text(&mut state, &fake, "lo");
+    let finder = state.finder.clone();
+    type_text(&mut state, &fake, "(");
+    assert_eq!(state.finder, finder);
+    assert_eq!(state.session.as_deref(), Some("$4"));
+    assert!(state.message.is_none());
+    let calls = fake.calls();
+    key(&mut state, &fake, "<Backspace>");
+    assert_eq!(fake.calls(), calls); // Same valid query is not searched again.
+    assert_eq!(state.finder, finder);
+    key(&mut state, &fake, "<C-w>");
+    assert!(state.finder.is_none());
+    type_text(&mut state, &fake, "x");
+    key(&mut state, &fake, "<Backspace>");
+    assert!(state.finder.is_none());
+    key(&mut state, &fake, "<Esc>");
+    state.session = Some("$2".into());
+    find(&mut state, &fake, "Work", false, Case::Smart);
+    assert_eq!(state.session.as_deref(), Some("$1"));
+    key(&mut state, &fake, "<Esc>");
+    find(&mut state, &fake, "Work", false, Case::Insensitive);
+    assert!(state.finder.as_ref().unwrap().matched("work").is_some());
+}
+
+#[test]
+fn find_smart_uppercase_does_not_match_lowercase_only() {
+    let fake = FakeTmux::new(sample_tree(&["api", "work"]));
+    let mut state = state(&fake);
+    find(&mut state, &fake, "Work", false, Case::Smart);
+    assert_eq!(state.session.as_deref(), Some("$0"));
+}
+
+#[test]
+fn find_arrows_next_previous_wrap_no_finder_and_no_other_match() {
+    let fake = FakeTmux::new(sample_tree(&["logs", "api", "blog"]));
+    let mut state = state(&fake);
+    let before = state.clone();
+    key(&mut state, &fake, "n");
+    assert_eq!(state, before);
+    find(&mut state, &fake, "log", false, Case::Smart);
+    key(&mut state, &fake, "<Enter>");
+    key(&mut state, &fake, "n");
+    assert_eq!(state.session.as_deref(), Some("$2"));
+    key(&mut state, &fake, "n");
+    assert_eq!(state.session.as_deref(), Some("$0"));
+    key(&mut state, &fake, "N");
+    assert_eq!(state.session.as_deref(), Some("$2"));
+    key(&mut state, &fake, "N");
+    assert_eq!(state.session.as_deref(), Some("$0"));
+    find(&mut state, &fake, "^logs$", false, Case::Smart);
+    key(&mut state, &fake, "<Enter>");
+    let before = state.clone();
+    key(&mut state, &fake, "n");
+    assert_eq!(state, before);
+}
+
+#[test]
+fn finder_follows_focus_after_h_and_l() {
+    let mut tree = sample_tree(&["logs", "api", "blog"]);
+    tree.sessions[0].windows[0].name = "logs".into();
+    tree.sessions[0].windows.push(Window {
+        id: "@10".into(),
+        index: 1,
+        name: "blog".into(),
+        active: false,
+        panes: vec![],
+    });
+    let fake = FakeTmux::new(tree);
+    let mut state = state(&fake);
+    key(&mut state, &fake, "l");
+    find(&mut state, &fake, "log", false, Case::Smart);
+    key(&mut state, &fake, "<Enter>");
+    key(&mut state, &fake, "h");
+    key(&mut state, &fake, "n");
+    assert_eq!(state.session.as_deref(), Some("$2"));
+    key(&mut state, &fake, "N");
+    key(&mut state, &fake, "l");
+    key(&mut state, &fake, "n");
+    assert_eq!(state.window.as_deref(), Some("@10"));
+}
+
+#[test]
+fn escape_order_and_finder_survives_refresh() {
+    let fake = FakeTmux::new(sample_tree(&["logs", "api", "blog"]));
+    let mut state = state(&fake);
+    find(&mut state, &fake, "log", false, Case::Smart);
+    state.message = Some("error".into());
+    state.which = Which::start(
+        "g".parse().unwrap(),
+        &Keymap::from_toml(&preset::keymap(), None).unwrap().picker,
+    );
+    state.apply(&Action::Escape, &fake);
+    assert!(state.which.is_none());
+    assert!(state.popup.is_some());
+    state.apply(&Action::Escape, &fake);
+    assert!(state.popup.is_none());
+    assert!(state.finder.is_some());
+    assert!(!state.refresh(&fake).unwrap());
+    let finder = state.finder.clone();
+    fake.new_session(Some("external")).unwrap();
+    assert!(state.refresh(&fake).unwrap());
+    assert_eq!(state.finder, finder);
+    key(&mut state, &fake, "n");
+    assert_eq!(state.session.as_deref(), Some("$2"));
+    state.apply(&Action::Escape, &fake);
+    assert!(state.finder.is_none());
+    assert_eq!(state.message.as_deref(), Some("error"));
+    let session = state.session.clone();
+    key(&mut state, &fake, "n");
+    assert_eq!(state.session, session);
+    state.apply(&Action::Escape, &fake);
+    assert!(state.message.is_none());
+}
+
 #[test]
 fn recent_order_pins_current_and_opens_cursor_on_it() {
     let mut tree = sample_tree(&["notes", "work", "older"]);

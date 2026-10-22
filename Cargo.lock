@@ -993,6 +993,7 @@ dependencies = [
  "crossterm 0.29.0",
  "insta",
  "ratatui",
+ "regex",
  "serde",
  "toml",
 ]

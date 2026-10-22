@@ -3,7 +3,7 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Modifier, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Block, BorderType, Clear, List, ListItem, ListState, Paragraph},
 };
@@ -18,6 +18,10 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &State, theme: &Theme
         match popup {
             Popup::Input { value, purpose, .. } => {
                 let title = match purpose {
+                    InputPurpose::Find {
+                        previous: false, ..
+                    } => "Find next:",
+                    InputPurpose::Find { previous: true, .. } => "Find previous:",
                     InputPurpose::CreateSession => "New session name:",
                     InputPurpose::CreateWindow { .. } => "New window name:",
                     InputPurpose::RenameSession { .. } => "Rename session:",
@@ -129,10 +133,7 @@ fn input(frame: &mut Frame, area: Rect, title: &str, value: &str, theme: &Theme)
     frame.render_widget(block, area);
     let line = Line::from(vec![
         Span::styled(value.to_string(), Style::from(&theme.input.value)),
-        Span::styled(
-            " ",
-            Style::from(&theme.input.value).add_modifier(Modifier::REVERSED),
-        ),
+        Span::styled(" ", Style::from(&theme.input.selected)),
     ]);
     // Text width handles wide Unicode characters without adding a dependency.
     let offset = line

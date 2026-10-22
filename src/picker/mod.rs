@@ -2,6 +2,7 @@
 
 pub mod action;
 pub mod app;
+pub mod finder;
 pub mod options;
 pub mod popup;
 pub mod state;

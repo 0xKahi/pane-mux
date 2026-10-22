@@ -1,10 +1,12 @@
 //! Owned prompt data; all text editing happens at the end of the input.
 
+use super::action::Case;
 use crate::{config::keymap::Chord, tmux::Level};
 
 /// Operation to run when a name prompt is submitted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputPurpose {
+    Find { previous: bool, case: Case },
     CreateSession,
     CreateWindow { session_id: String },
     RenameSession { id: String },

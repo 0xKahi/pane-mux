@@ -6,6 +6,8 @@ session = { fg = "#82AAFF" }
 window = { fg = "lightcyan" }
 pane = { fg = "white" }
 header = { fg = "lightgreen" }
+find_keyword = { fg = "yellow", bold = true, italic = true, underline = true }
+find_position = { fg = "magenta", bg = "reset", bold = true, italic = true }
 
 [indicator]
 parent = { reversed = true }
@@ -49,7 +51,8 @@ body = {}
 [input]
 border = { fg = "yellow" }
 title = { fg = "red" }
-value = { fg = "#c8d3f5" }
+value = { fg = "white" }
+selected = { reversed = true }
 
 [help]
 border = { fg = "gray" }

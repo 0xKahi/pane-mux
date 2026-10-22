@@ -1,7 +1,11 @@
 use super::*;
 use crate::{
     config::{Config, keymap::Keymap, preset, settings::PreviewPosition},
-    picker::{PickerOptions, action::Action},
+    picker::{
+        PickerOptions,
+        action::{Action, Case},
+        finder::Finder,
+    },
     tmux::{Current, FakeTmux, Pane, Tree, Window, sample_tree},
 };
 use ratatui::{
@@ -82,6 +86,89 @@ fn draw(state: &mut State, theme: &Theme, config: &PickerConfig) -> Terminal<Tes
 
 fn press(state: &mut State, fake: &FakeTmux, keymap: &Keymap, key: &str) {
     state.handle_key(key.parse().unwrap(), keymap, fake);
+}
+
+#[test]
+fn find_highlight_and_badge_follow_focus() {
+    let (mut state, _, theme, config, _) = fixture();
+    state.tree = sample_tree(&["logs", "api", "blog"]);
+    state.session = Some(state.tree.sessions[2].id.clone());
+    state.tree.sessions[2].windows[0].name = "logs".into();
+    state.tree.sessions[2].windows[0].panes[0].command = "logs".into();
+    state.window = Some(state.tree.sessions[2].windows[0].id.clone());
+    state.pane = Some(state.tree.sessions[2].windows[0].panes[0].id.clone());
+    state.finder = Some(Finder::new("log".into(), Case::Sensitive).unwrap());
+    let terminal = draw(&mut state, &theme, &config);
+    insta::assert_snapshot!(terminal.backend());
+    let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
+    let buffer = terminal.backend().buffer();
+    for (x, y, hovered) in [(7, 2, false), (8, 4, true)] {
+        for offset in 0..3 {
+            let cell = &buffer[(x + offset, y)];
+            assert_eq!(cell.fg, Color::Yellow);
+            let mut expected = Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED;
+            if hovered {
+                expected |= Modifier::REVERSED;
+            }
+            assert_eq!(cell.modifier, expected);
+        }
+    }
+    assert_eq!(buffer[(7, 4)].fg, theme.picker.session.fg.unwrap());
+    for (offset, symbol) in " [2/2]".chars().enumerate() {
+        let cell = &buffer[(11 + offset as u16, 4)];
+        assert_eq!(cell.symbol(), symbol.to_string());
+        assert_eq!(cell.fg, Color::Magenta);
+        assert_eq!(cell.bg, Color::Reset);
+        assert!(cell.modifier.contains(Modifier::BOLD | Modifier::ITALIC));
+    }
+    for area in &areas.columns[1..] {
+        for y in area.y + 1..area.bottom() - 1 {
+            for x in area.x + 1..area.right() - 1 {
+                assert!(!buffer[(x, y)].modifier.contains(Modifier::BOLD));
+                assert_ne!(buffer[(x, y)].fg, Color::Yellow);
+            }
+        }
+    }
+}
+
+#[test]
+fn find_highlights_only_first_name_match_after_index() {
+    let (mut state, _, theme, config, _) = fixture();
+    state.focus = Level::Window;
+    state.tree.sessions[0].windows[0].name = "élog log".into();
+    state.finder = Some(Finder::new("log|1".into(), Case::Sensitive).unwrap());
+    let terminal = draw(&mut state, &theme, &config);
+    let area = layout::areas(Rect::new(0, 0, 80, 24), &config).columns[1];
+    let buffer = terminal.backend().buffer();
+    let start = area.x + 7;
+    assert_eq!(buffer[(start, area.y + 1)].symbol(), "1");
+    assert_ne!(buffer[(start, area.y + 1)].fg, Color::Yellow);
+    assert_eq!(buffer[(start + 3, area.y + 1)].symbol(), "é");
+    for offset in 4..7 {
+        assert_eq!(buffer[(start + offset, area.y + 1)].fg, Color::Yellow);
+    }
+    assert_ne!(buffer[(start + 8, area.y + 1)].fg, Color::Yellow);
+}
+
+#[test]
+fn find_badge_and_caps_survive_long_wide_names() {
+    let (mut state, _, mut theme, config, _) = fixture();
+    theme.indicator.padding.open = "<".into();
+    theme.indicator.padding.close = ">".into();
+    state.tree.sessions[0].name = format!("log{}", "界".repeat(40));
+    state.finder = Some(Finder::new("log".into(), Case::Sensitive).unwrap());
+    let terminal = draw(&mut state, &theme, &config);
+    insta::assert_snapshot!(terminal.backend());
+    let area = Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[0]);
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer[(area.x, area.y)].symbol(), "<");
+    assert_eq!(buffer[(area.right() - 1, area.y)].symbol(), ">");
+    assert_eq!(buffer[(area.right(), area.y)].symbol(), "│");
+    for (offset, symbol) in " [1/1]".chars().enumerate() {
+        let cell = &buffer[(area.right() - 7 + offset as u16, area.y)];
+        assert_eq!(cell.symbol(), symbol.to_string());
+        assert_eq!(cell.fg, Color::Magenta);
+    }
 }
 
 #[test]
@@ -188,7 +275,26 @@ fn input_popup_with_cursor() {
     let cursor = &buffer[(16, 11)];
     assert_eq!(cursor.symbol(), " ");
     assert!(cursor.modifier.contains(Modifier::REVERSED));
-    assert_eq!(cursor.fg, theme.input.value.fg.unwrap());
+    assert_eq!(cursor.fg, Color::Reset);
+    assert_eq!(buffer[(11, 11)].fg, Color::White);
+}
+
+#[test]
+fn input_cursor_uses_selected_style() {
+    let (mut state, fake, _, config, keymap) = fixture();
+    let theme = Theme::from_toml(
+        &preset::theme(),
+        Some("[input]\nselected = { bg = 'blue', reversed = false }"),
+    )
+    .unwrap();
+    for key in ["a", "n", "o", "t", "e", "s"] {
+        press(&mut state, &fake, &keymap, key);
+    }
+    let terminal = draw(&mut state, &theme, &config);
+    let cursor = &terminal.backend().buffer()[(16, 11)];
+    assert_eq!(cursor.symbol(), " ");
+    assert_eq!(cursor.bg, Color::Blue);
+    assert!(!cursor.modifier.contains(Modifier::REVERSED));
 }
 
 #[test]

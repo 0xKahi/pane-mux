@@ -6,7 +6,8 @@ use anyhow::Result;
 use crossterm::event::KeyCode;
 
 use super::{
-    action::{Action, Direction, Step},
+    action::{Action, Case, Direction, Step},
+    finder::Finder,
     options::{PickerOptions, SessionOrder},
     popup::{InputPurpose, Popup},
     which::Which,
@@ -44,6 +45,7 @@ pub struct State {
     pub pane: Option<String>,
     pub preview: Preview,
     pub popup: Option<Popup>,
+    pub finder: Option<Finder>,
     pub which: Option<Which>,
     pub message: Option<String>,
     pub list_height: u16,
@@ -69,6 +71,7 @@ impl State {
             pane: None,
             preview: Preview::default(),
             popup: None,
+            finder: None,
             which: None,
             message: None,
             list_height: 10,
@@ -211,6 +214,27 @@ impl State {
         }
     }
 
+    /// Visible ids and names only (no indexes, icons or markers), in row order.
+    pub fn names(&self, level: Level) -> Vec<(String, &str)> {
+        match level {
+            Level::Session => self
+                .sessions()
+                .iter()
+                .map(|s| (s.id.clone(), s.name.as_str()))
+                .collect(),
+            Level::Window => self
+                .windows()
+                .iter()
+                .map(|w| (w.id.clone(), w.name.as_str()))
+                .collect(),
+            Level::Pane => self
+                .panes()
+                .iter()
+                .map(|p| (p.id.clone(), p.command.as_str()))
+                .collect(),
+        }
+    }
+
     fn cursor(&self, level: Level) -> &Option<String> {
         match level {
             Level::Session => &self.session,
@@ -314,6 +338,7 @@ impl State {
             && let Some(Popup::Input { value, .. }) = &mut self.popup
         {
             value.push(c);
+            self.input_changed(tmux);
         }
         None
     }
@@ -340,7 +365,10 @@ impl State {
                     .map(|target| Exit::Pick(target.at(self.options.level.unwrap_or(self.focus))));
             }
             Action::Escape => {
-                if self.which.take().is_none() && self.popup.take().is_none() {
+                if self.which.take().is_none()
+                    && self.popup.take().is_none()
+                    && self.finder.take().is_none()
+                {
                     self.message = None;
                 }
             }
@@ -382,6 +410,26 @@ impl State {
                     (i32::from(self.preview.scroll) + delta).clamp(0, i32::from(u16::MAX)) as u16;
                 self.clamp_scroll();
             }
+            Action::Find { previous, case } => {
+                self.popup = Some(Popup::Input {
+                    title: if *previous {
+                        "Find previous:"
+                    } else {
+                        "Find next:"
+                    }
+                    .into(),
+                    value: String::new(),
+                    purpose: InputPurpose::Find {
+                        previous: *previous,
+                        case: *case,
+                    },
+                });
+            }
+            Action::FindArrow { previous } => {
+                if let Some(finder) = &self.finder {
+                    self.find_jump(finder.clone(), *previous, false, tmux);
+                }
+            }
             Action::Create => self.open_input(false),
             Action::Rename => self.open_input(true),
             Action::Remove => self.open_confirm(),
@@ -416,11 +464,59 @@ impl State {
                         }
                         _ => {}
                     }
+                    self.input_changed(tmux);
                 }
             }
             Action::Focus(_) => {}
         }
         None
+    }
+
+    fn input_changed(&mut self, tmux: &dyn Tmux) {
+        if let Some(Popup::Input {
+            value,
+            purpose: InputPurpose::Find { previous, case },
+            ..
+        }) = &self.popup
+        {
+            self.find_do(value.clone(), *previous, *case, tmux);
+        }
+    }
+
+    fn find_do(&mut self, query: String, previous: bool, case: Case, tmux: &dyn Tmux) {
+        if query.is_empty() {
+            self.finder = None;
+            return;
+        }
+        if self
+            .finder
+            .as_ref()
+            .is_some_and(|f| f.query == query && f.case == case)
+        {
+            return;
+        }
+        let Ok(finder) = Finder::new(query, case) else {
+            return;
+        };
+        self.find_jump(finder.clone(), previous, true, tmux);
+        self.finder = Some(finder);
+    }
+
+    fn find_jump(&mut self, finder: Finder, previous: bool, include: bool, tmux: &dyn Tmux) {
+        let names = self.names(self.focus);
+        let cursor = names
+            .iter()
+            .position(|(id, _)| Some(id.as_str()) == self.hovered_id())
+            .unwrap_or(0);
+        let id = if previous {
+            finder.prev(&names, cursor, include)
+        } else {
+            finder.next(&names, cursor, include)
+        };
+        if let Some(id) = id {
+            self.select(self.focus, Some(id));
+            self.preview_or_message(tmux);
+        }
     }
 
     fn preview_or_message(&mut self, tmux: &dyn Tmux) {
@@ -505,6 +601,7 @@ impl State {
                     Some(value.as_str())
                 };
                 match purpose {
+                    InputPurpose::Find { .. } => return Ok(()),
                     InputPurpose::CreateSession => {
                         created = Some((Level::Session, tmux.new_session(name)?))
                     }

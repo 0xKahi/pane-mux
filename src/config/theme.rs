@@ -81,6 +81,8 @@ pub struct PickerTheme {
     pub window: StyleDef,
     pub pane: StyleDef,
     pub header: StyleDef,
+    pub find_keyword: StyleDef,
+    pub find_position: StyleDef,
 }
 
 /// Pane preview frame appearance.
@@ -189,6 +191,7 @@ pub struct InputTheme {
     pub border: StyleDef,
     pub title: StyleDef,
     pub value: StyleDef,
+    pub selected: StyleDef,
 }
 
 /// Key-binding help popup.
@@ -225,6 +228,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn partial_input_override_keeps_other_defaults() {
+        let mut expected = Theme::from_toml(&preset::theme(), None).unwrap();
+        expected.input.border.fg = Some(Color::Green);
+        let actual =
+            Theme::from_toml(&preset::theme(), Some("[input]\nborder = { fg = 'green' }")).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(actual.input.title.fg, Some(Color::Red));
+        assert_eq!(actual.input.value.fg, Some(Color::White));
+        assert_eq!(actual.input.selected.reversed, Some(true));
     }
 
     #[test]

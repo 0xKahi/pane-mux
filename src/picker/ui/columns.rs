@@ -18,17 +18,17 @@ pub(super) fn render(frame: &mut Frame, areas: [Rect; 3], state: &State, theme: 
     let sessions = state
         .sessions()
         .iter()
-        .map(|s| (s.id.clone(), s.name.clone()))
+        .map(|s| (s.id.clone(), String::new(), s.name.as_str()))
         .collect();
     let windows = state
         .windows()
         .iter()
-        .map(|w| (w.id.clone(), format!("{}: {}", w.index, w.name)))
+        .map(|w| (w.id.clone(), format!("{}: ", w.index), w.name.as_str()))
         .collect();
     let panes = state
         .panes()
         .iter()
-        .map(|p| (p.id.clone(), format!("{}: {}", p.index, p.command)))
+        .map(|p| (p.id.clone(), format!("{}: ", p.index), p.command.as_str()))
         .collect();
     for (area, level, icon, rows) in [
         (areas[0], Level::Session, &theme.icons.session, sessions),
@@ -46,7 +46,7 @@ fn column(
     theme: &Theme,
     level: Level,
     icon: &Icon,
-    rows: Vec<(String, String)>,
+    rows: Vec<(String, String, &str)>,
 ) {
     let (title, selected) = match level {
         Level::Session => ("Sessions", state.session.as_deref()),
@@ -60,12 +60,15 @@ fn column(
     frame.render_widget(block, area);
     let selection = rows
         .iter()
-        .position(|(id, _)| Some(id.as_str()) == selected)
+        .position(|(id, _, _)| Some(id.as_str()) == selected)
         .unwrap_or(0);
     let offset = selection
         .saturating_add(1)
         .saturating_sub(usize::from(inner.height));
-    for (row, (id, label)) in rows
+    let finder = state.finder.as_ref().filter(|_| level == state.focus);
+    let position =
+        finder.and_then(|finder| selected.and_then(|id| finder.position(&state.names(level), id)));
+    for (row, (id, prefix, name)) in rows
         .into_iter()
         .skip(offset)
         .take(usize::from(inner.height))
@@ -148,9 +151,36 @@ fn column(
             };
             spans.push(Span::styled(format!("{} ", icon.text), icon_style));
         }
-        spans.push(Span::raw(label));
-        // Separate regions clip long labels before the right cap, including wide glyphs.
-        frame.render_widget(Paragraph::new(Line::from(spans)).style(style), content_area);
+        spans.push(Span::raw(prefix));
+        if let Some(matched) = finder.and_then(|finder| finder.matched(name)) {
+            spans.push(Span::raw(&name[..matched.start]));
+            spans.push(Span::styled(
+                &name[matched.clone()],
+                style.patch(Style::from(&theme.picker.find_keyword)),
+            ));
+            spans.push(Span::raw(&name[matched.end..]));
+        } else {
+            spans.push(Span::raw(name));
+        }
+        let line = Line::from(spans);
+        let badge = position
+            .filter(|_| hovered)
+            .map(|(index, total)| format!(" [{index}/{total}]"))
+            .unwrap_or_default();
+        let badge_width = Span::raw(&badge)
+            .width()
+            .min(usize::from(content_area.width)) as u16;
+        let label_width = content_area.width - badge_width;
+        let badge_x = content_area.x + line.width().min(usize::from(label_width)) as u16;
+        // Reserve the badge and caps before clipping long names, including wide glyphs.
+        frame.render_widget(
+            Paragraph::new(line).style(style),
+            Rect::new(content_area.x, y, label_width, 1),
+        );
+        frame.render_widget(
+            Paragraph::new(badge).style(Style::from(&theme.picker.find_position)),
+            Rect::new(badge_x, y, badge_width, 1),
+        );
         let cap_style = match cap_color {
             // Reset removes the row's modifiers as well as its background on actual caps.
             Some(color) => Style::reset().fg(color).bg(Color::Reset),
