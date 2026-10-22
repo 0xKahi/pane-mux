@@ -96,6 +96,11 @@ fn column(
         // A "filled" row (reversed or with a bg) drops the icon/marker colours so the
         // background is uniform; underline-only rows keep them.
         let filled = cap_color.is_some();
+        // Underline rows: one underline colour across the row, matching the entry text
+        // colour, even under icons/markers that keep their own fg.
+        if hovered && !filled && style.add_modifier.contains(Modifier::UNDERLINED) {
+            style = style.underline_color(style.fg.unwrap_or(Color::Reset));
+        }
         let (open, close) = if filled {
             (
                 theme.indicator.padding.open.as_str(),

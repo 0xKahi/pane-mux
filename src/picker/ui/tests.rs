@@ -109,6 +109,8 @@ fn bottom_50_layout_and_current_columns() {
             // Underline row: underline everywhere, but icon/marker keep their colours.
             for cell in [icon, name, marker] {
                 assert!(cell.modifier.contains(Modifier::UNDERLINED));
+                // One underline colour: the entry text colour.
+                assert_eq!(cell.underline_color, name.fg);
             }
             let icon_theme = if area == areas.columns[1] {
                 &theme.icons.window

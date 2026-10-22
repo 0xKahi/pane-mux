@@ -132,6 +132,7 @@ Each column's hovered row SHALL be styled by position relative to the focused co
 #### Scenario: Underline keeps colours
 - **WHEN** a row with a coloured icon and the `*` marker is hovered in a column right of the focused one
 - **THEN** the row is underlined and the icon and `*` keep their own colours
+- **AND** the underline has one colour across the row: the entry text colour
 
 ### Requirement: Hovered-row padding caps
 When a hovered row's indicator style has a `bg` or is `reversed`, the row SHALL start with `[indicator] padding.open` and end with `padding.close` at the column's right edge, drawn in the highlight colour against the terminal background. Otherwise (e.g. underline), and on unhovered rows, those positions SHALL be spaces.
