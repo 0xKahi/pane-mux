@@ -4,10 +4,16 @@ A yazi-style terminal picker for tmux sessions, windows, and panes, written in R
 
 ## Commands
 
-Install from the project directory:
+Install from crates.io:
 
 ```sh
-cargo install --path .
+cargo install pane-mux --locked
+```
+
+Or build from a source checkout:
+
+```sh
+cargo install --path . --locked
 ```
 
 ```text
@@ -194,3 +200,16 @@ The complete, authoritative defaults are:
 - [theme-default.toml](src/config/preset/theme-default.toml)
 
 Debug builds read these preset files from the source tree at runtime. Release builds embed them in the binary, so the source tree is not needed.
+
+## Releasing
+
+Releases are automated with [release-plz](https://release-plz.dev):
+
+1. Squash-merge pull requests into `main` with a
+   [conventional commit](https://www.conventionalcommits.org) title such as
+   `feat: add pane filter` or `fix(picker): keep cursor on refresh`. The PR
+   title check enforces this; use `!` (for example `feat!:`) for breaking changes.
+2. On each push to `main`, release-plz opens or updates a release PR that bumps
+   the version in `Cargo.toml`/`Cargo.lock` and updates `CHANGELOG.md`.
+3. Merging the release PR publishes the new version to crates.io, tags it
+   `vX.Y.Z`, and creates a GitHub Release.
