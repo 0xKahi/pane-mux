@@ -115,7 +115,7 @@ The picker SHALL mark the current session, window and pane (those of the tmux cl
 - **THEN** the `work` row reads `* <icon> work` with `*` in the active indicator colour
 
 ### Requirement: Hovered-row indicator
-Each column's hovered row SHALL be styled by position relative to the focused column (yazi's `[indicator]` model): the focused column uses `indicator.current`, columns to its left `indicator.parent` (both default `reversed`), columns to its right `indicator.preview` (default `underline`). The style SHALL be patched over the row's text style across the column's full inner width, and on a hovered row whose style has a `bg` or is `reversed` the icon and active marker SHALL NOT keep their own colours (uniform background). On underline-only rows the icon and marker SHALL keep their colours.
+Each column's hovered row SHALL be styled by position relative to the focused column (yazi model): focused column `indicator.current`, columns left of it `indicator.parent` (both default `reversed`), columns right of it `indicator.preview` (default `underline`), patched over the row's text style across the full inner width. On rows filled by `bg` or `reversed`, icon and marker SHALL drop their colours; on underline rows they SHALL keep them.
 
 #### Scenario: Focus on sessions
 - **WHEN** the sessions column is focused
