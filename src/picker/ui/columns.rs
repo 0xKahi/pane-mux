@@ -3,16 +3,13 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Paragraph},
 };
 
 use crate::{
-    config::{
-        Theme,
-        theme::{Icon, StyleDef},
-    },
+    config::{Theme, theme::Icon},
     picker::State,
     tmux::Level,
 };
@@ -75,18 +72,24 @@ fn column(
         .enumerate()
     {
         let hovered = Some(id.as_str()) == selected;
-        let hover = if state.focus == level {
-            &theme.picker.hovered
-        } else {
-            &theme.picker.hovered_unfocused
+        let base = match level {
+            Level::Session => &theme.picker.session,
+            Level::Window => &theme.picker.window,
+            Level::Pane => &theme.picker.pane,
         };
-        let style = if hovered {
-            Style::from(hover)
+        let indicator = if column_index(level) < column_index(state.focus) {
+            &theme.indicator.parent
+        } else if level == state.focus {
+            &theme.indicator.current
         } else {
-            Style::default()
+            &theme.indicator.preview
         };
+        let mut style = Style::from(base);
+        if hovered {
+            style = style.patch(Style::from(indicator));
+        }
         let cap_color = if hovered {
-            highlight_color(hover)
+            highlight_color(style)
         } else {
             None
         };
@@ -99,6 +102,10 @@ fn column(
             (" ", " ")
         };
         let y = inner.y + row as u16;
+        // Style the entire row first, including the edge spaces on underline rows.
+        frame
+            .buffer_mut()
+            .set_style(Rect::new(inner.x, y, inner.width, 1), style);
         let open_width = Span::raw(open).width().min(usize::from(inner.width)) as u16;
         let close_width = Span::raw(close)
             .width()
@@ -136,9 +143,11 @@ fn column(
         spans.push(Span::raw(label));
         // Separate regions clip long labels before the right cap, including wide glyphs.
         frame.render_widget(Paragraph::new(Line::from(spans)).style(style), content_area);
-        let cap_style = Style::default()
-            .fg(cap_color.unwrap_or(Color::Reset))
-            .bg(Color::Reset);
+        let cap_style = match cap_color {
+            // Reset removes the row's modifiers as well as its background on actual caps.
+            Some(color) => Style::reset().fg(color).bg(Color::Reset),
+            None => style,
+        };
         frame.render_widget(
             Paragraph::new(open).style(cap_style),
             Rect::new(inner.x, y, open_width, 1),
@@ -151,10 +160,18 @@ fn column(
 }
 
 // Reversal uses the foreground as the visible background; caps must not be reversed.
-fn highlight_color(style: &StyleDef) -> Option<Color> {
-    if style.reversed == Some(true) {
+fn highlight_color(style: Style) -> Option<Color> {
+    if style.add_modifier.contains(Modifier::REVERSED) {
         Some(style.fg.unwrap_or(Color::Reset))
     } else {
         style.bg
+    }
+}
+
+fn column_index(level: Level) -> u8 {
+    match level {
+        Level::Session => 0,
+        Level::Window => 1,
+        Level::Pane => 2,
     }
 }

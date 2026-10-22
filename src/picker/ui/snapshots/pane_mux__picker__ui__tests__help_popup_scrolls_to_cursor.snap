@@ -4,7 +4,7 @@ expression: terminal.backend()
 ---
 "[Pick session]                                                                  "
 "┌Sessions─────────────────┐┌Windows─────────────────┐┌Panes────────────────────┐"
-"│ *╭Help — picker bindings────────────────────────────────────────────────╮  │"
+"│ *╭Help — picker bindings────────────────────────────────────────────────╮   │"
 "│   │h                 Focus previous column                               │   │"
 "│   │<Left>            Focus previous column                               │   │"
 "│   │l                 Focus next column                                   │   │"

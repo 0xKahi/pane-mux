@@ -115,15 +115,37 @@ The picker SHALL mark the current session, window and pane (those of the tmux cl
 - **THEN** the `work` row reads `* <icon> work` with `*` in the active indicator colour
 
 ### Requirement: Hovered-row indicator
-The hovered row of each column SHALL be drawn with a single uniform highlight across its whole width: the icon, active marker and name SHALL NOT keep their own colours on the hovered row, so the background is the same behind all of them. Like yazi, the row SHALL start with the theme's `[indicator] padding.open` text and end with `padding.close`, drawn in the highlight colour against the terminal background; unhovered rows SHALL use a space in those positions.
+Each column's hovered row SHALL be styled by position relative to the focused column (yazi's `[indicator]` model): the focused column uses `indicator.current`, columns to its left `indicator.parent` (both default `reversed`), columns to its right `indicator.preview` (default `underline`). The style SHALL be patched over the row's text style across the column's full inner width, and the icon and active marker SHALL NOT keep their own colours on a hovered row.
+
+#### Scenario: Focus on sessions
+- **WHEN** the sessions column is focused
+- **THEN** the hovered session row is reversed, and the hovered window and pane rows are underlined
+
+#### Scenario: Focus on panes
+- **WHEN** the panes column is focused
+- **THEN** the hovered session and window rows use the parent style and the hovered pane row the current style, all reversed
 
 #### Scenario: Uniform hover background
-- **WHEN** a session row with a coloured icon is hovered
+- **WHEN** a session row with a coloured icon is hovered in a reversed column
 - **THEN** the icon cell and the name cells have the same background
 
+### Requirement: Hovered-row padding caps
+When a hovered row's indicator style has a `bg` or is `reversed`, the row SHALL start with `[indicator] padding.open` and end with `padding.close` at the column's right edge, drawn in the highlight colour against the terminal background. Otherwise (e.g. underline), and on unhovered rows, those positions SHALL be spaces.
+
 #### Scenario: Rounded padding
-- **WHEN** the theme sets `[indicator] padding = { open = "<", close = ">" }` and a row is hovered
+- **WHEN** the theme sets `[indicator] padding = { open = "<", close = ">" }` and a row is hovered in a reversed column
 - **THEN** that row begins with `<` and ends with `>` at the column's right edge
+
+#### Scenario: No caps for underline
+- **WHEN** a row is hovered in a column right of the focused one
+- **THEN** it is underlined and has spaces instead of caps
+
+### Requirement: Row text colours
+Session and window names SHALL be drawn in the theme's `[picker] session` / `window` text styles, defaulting to the same colour as their icons. Pane names SHALL use the `[picker] pane` style, which defaults to the terminal's default colours.
+
+#### Scenario: Session name colour
+- **WHEN** no user theme is set
+- **THEN** an unhovered session name has the same fg as the session icon
 
 ### Requirement: Create session and window
 The picker SHALL let the user create a session (sessions column focused) or a window in the hovered session (windows column focused) via a name input prompt. Submitting an empty name SHALL use tmux's default naming. Creation SHALL be a no-op when the panes column is focused.

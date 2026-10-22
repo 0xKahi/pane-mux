@@ -77,8 +77,9 @@ impl Theme {
 #[serde(deny_unknown_fields)]
 pub struct PickerTheme {
     pub border: StyleDef,
-    pub hovered: StyleDef,
-    pub hovered_unfocused: StyleDef,
+    pub session: StyleDef,
+    pub window: StyleDef,
+    pub pane: StyleDef,
     pub header: StyleDef,
 }
 
@@ -111,6 +112,9 @@ pub struct Icons {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IndicatorTheme {
+    pub parent: StyleDef,
+    pub current: StyleDef,
+    pub preview: StyleDef,
     pub padding: IndicatorPadding,
     pub active: ActiveIndicator,
 }
@@ -248,6 +252,21 @@ mod tests {
         assert_eq!(actual.indicator.active.style.fg, Some(Color::Magenta));
         let padding: IndicatorPadding = toml::from_str("open = '<'").unwrap();
         assert_eq!(padding.close, "\u{e0b4}");
+    }
+
+    #[test]
+    fn partial_indicator_preview_override_keeps_other_roles() {
+        let mut expected = Theme::from_toml(&preset::theme(), None).unwrap();
+        expected.indicator.preview.fg = Some(Color::Yellow);
+        let actual = Theme::from_toml(
+            &preset::theme(),
+            Some("[indicator]\npreview = { fg = 'yellow' }"),
+        )
+        .unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(actual.indicator.preview.underline, Some(true));
+        assert_eq!(actual.indicator.parent.reversed, Some(true));
+        assert_eq!(actual.indicator.current.reversed, Some(true));
     }
 
     #[test]

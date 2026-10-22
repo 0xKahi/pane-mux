@@ -2,11 +2,15 @@
 # green/blue mode labels, and yellow/red input and confirmation frames.
 [picker]
 border = { fg = "gray" }
-hovered = { reversed = true, bold = true }
-hovered_unfocused = { reversed = true }
+session = { fg = "#82AAFF" }
+window = { fg = "lightcyan" }
+pane = {}
 header = { fg = "lightgreen" }
 
 [indicator]
+parent = { reversed = true }
+current = { reversed = true }
+preview = { underline = true }
 # Exact Powerline caps from the user's yazi theme, preserved as Unicode escapes.
 padding = { open = "\uE0B6", close = "\uE0B4" }
 active = { text = "*", fg = "magenta" }

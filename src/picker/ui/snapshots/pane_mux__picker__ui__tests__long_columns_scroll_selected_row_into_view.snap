@@ -4,7 +4,7 @@ expression: terminal.backend()
 ---
 "[Pick session]                                                                  "
 "┌Sessions─────────────────┐┌Windows─────────────────┐┌Panes────────────────────┐"
-"│     session-21         ││   󱂬 0: shell         ││    0: sh             │"
+"│     session-21         ││    󱂬 0: shell          ││     0: sh              │"
 "│     session-22         ││                        ││                         │"
 "│     session-23         ││                        ││                         │"
 "│     session-24         ││                        ││                         │"

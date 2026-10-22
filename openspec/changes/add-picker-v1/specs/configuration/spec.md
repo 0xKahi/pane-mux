@@ -69,7 +69,7 @@ A binding SHALL have `on` (a single key or a list of keys, using `<C-x>`, `<S-x>
 - **THEN** pane-mux exits with code 2 and an error identifying the invalid key
 
 ### Requirement: Theme styles
-Theme styles SHALL accept `fg` and `bg` as named colours, `"#rrggbb"`, or `"reset"`, plus boolean modifiers (`bold`, `italic`, `underline`, `reversed`, `dim`). The theme SHALL include configurable icon text and colour for sessions, windows and panes, and an `[indicator]` section with `padding = { open, close }` (hovered-row caps) and `active = { text, fg }` (current-item marker, default `*` magenta).
+Theme styles SHALL accept `fg` and `bg` as named colours, `"#rrggbb"`, or `"reset"`, plus boolean modifiers (`bold`, `italic`, `underline`, `reversed`, `dim`). The theme SHALL include configurable icon text and colour for sessions, windows and panes, and an `[indicator]` section with yazi-style `parent` / `current` / `preview` hovered-row styles, `padding = { open, close }` (hovered-row caps) and `active = { text, fg }` (current-item marker, default `*` magenta).
 
 #### Scenario: Custom icon
 - **WHEN** `theme.toml` sets `[icons] session = { text = "S" }`

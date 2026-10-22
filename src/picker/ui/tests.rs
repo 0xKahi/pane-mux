@@ -102,14 +102,13 @@ fn bottom_50_layout_and_current_columns() {
             (marker.bg, marker.fg, marker.modifier),
             (name.bg, name.fg, name.modifier)
         );
-        assert!(name.modifier.contains(Modifier::REVERSED));
+        let expected = if area == areas.columns[0] {
+            Modifier::REVERSED
+        } else {
+            Modifier::UNDERLINED
+        };
+        assert!(name.modifier.contains(expected));
     }
-    assert!(buffer[(7, 2)].modifier.contains(Modifier::BOLD));
-    assert!(
-        !buffer[(areas.columns[1].x + 7, 2)]
-            .modifier
-            .contains(Modifier::BOLD)
-    );
 }
 
 #[test]
@@ -293,9 +292,10 @@ fn hovered_caps_use_highlight_colour_at_inner_edges() {
         (true, None, None, Color::Reset),
         (false, None, Some(Color::Blue), Color::Blue),
     ] {
-        theme.picker.hovered.reversed = Some(reversed);
-        theme.picker.hovered.fg = fg;
-        theme.picker.hovered.bg = bg;
+        theme.picker.session.fg = None;
+        theme.indicator.current.reversed = Some(reversed);
+        theme.indicator.current.fg = fg;
+        theme.indicator.current.bg = bg;
         let terminal = draw(&mut state, &theme, &config);
         let area =
             Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[0]);
@@ -348,8 +348,8 @@ fn wide_caps_reserve_display_width_and_plain_highlight_uses_spaces() {
         terminal.backend().buffer()[(area.right() - 1, area.y)].symbol(),
         ">"
     );
-    theme.picker.hovered.reversed = Some(false);
-    theme.picker.hovered.bg = None;
+    theme.indicator.current.reversed = Some(false);
+    theme.indicator.current.bg = None;
     let terminal = draw(&mut state, &theme, &config);
     assert_eq!(terminal.backend().buffer()[(area.x, area.y)].symbol(), " ");
     assert_eq!(
@@ -359,21 +359,118 @@ fn wide_caps_reserve_display_width_and_plain_highlight_uses_spaces() {
 }
 
 #[test]
-fn unhovered_current_marker_is_magenta_but_name_is_unstyled() {
+fn unhovered_current_marker_is_magenta_but_name_keeps_base_colour() {
     let (mut state, fake, theme, config, keymap) = fixture();
     press(&mut state, &fake, &keymap, "j");
     let terminal = draw(&mut state, &theme, &config);
-    insta::assert_snapshot!(terminal.backend());
+    insta::assert_snapshot!(
+        "unhovered_current_marker_is_magenta_but_name_is_unstyled",
+        terminal.backend()
+    );
     let buffer = terminal.backend().buffer();
     let marker = &buffer[(3, 2)];
     assert_eq!(marker.symbol(), "*");
     assert_eq!(marker.fg, Color::Magenta);
     let name = &buffer[(7, 2)];
     assert_eq!(name.symbol(), "w");
-    assert_eq!(name.fg, Color::Reset);
+    assert_eq!(name.fg, theme.picker.session.fg.unwrap());
     assert_eq!(name.bg, Color::Reset);
     assert!(name.modifier.is_empty());
     assert_eq!(buffer[(5, 2)].fg, theme.icons.session.fg.unwrap());
     assert_eq!(buffer[(3, 3)].symbol(), " ");
     assert_eq!(buffer[(7, 3)].symbol(), "d");
+}
+
+#[test]
+fn column_roles_follow_focus_and_cover_full_row_width() {
+    let (mut state, _, theme, config, _) = fixture();
+    for (focus_index, focus) in [Level::Session, Level::Window, Level::Pane]
+        .into_iter()
+        .enumerate()
+    {
+        state.focus = focus;
+        let terminal = draw(&mut state, &theme, &config);
+        let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
+        let buffer = terminal.backend().buffer();
+        for (index, area) in areas.columns.into_iter().enumerate() {
+            let inner = Block::bordered().inner(area);
+            let reversed = index <= focus_index;
+            let expected = if reversed {
+                Modifier::REVERSED
+            } else {
+                Modifier::UNDERLINED
+            };
+            let name = &buffer[(inner.x + 6, inner.y)];
+            assert_eq!(name.modifier, expected);
+            for x in inner.x..inner.right() {
+                let cell = &buffer[(x, inner.y)];
+                let edge = x == inner.x || x == inner.right() - 1;
+                if reversed && edge {
+                    assert_eq!(
+                        cell.symbol(),
+                        if x == inner.x { "\u{e0b6}" } else { "\u{e0b4}" }
+                    );
+                    assert_eq!(cell.fg, name.fg);
+                    assert_eq!(cell.bg, Color::Reset);
+                    assert!(cell.modifier.is_empty());
+                } else {
+                    assert_eq!(
+                        (cell.fg, cell.bg, cell.modifier),
+                        (name.fg, name.bg, name.modifier)
+                    );
+                    if edge {
+                        assert_eq!(cell.symbol(), " ");
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn parent_current_and_preview_are_distinct_style_overlays() {
+    let (mut state, _, mut theme, config, _) = fixture();
+    theme.indicator.parent.bold = Some(true);
+    theme.indicator.current.italic = Some(true);
+    theme.indicator.preview.dim = Some(true);
+    state.focus = Level::Window;
+    let terminal = draw(&mut state, &theme, &config);
+    insta::assert_snapshot!(terminal.backend());
+    let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
+    for (area, expected) in areas.columns.into_iter().zip([
+        Modifier::REVERSED | Modifier::BOLD,
+        Modifier::REVERSED | Modifier::ITALIC,
+        Modifier::UNDERLINED | Modifier::DIM,
+    ]) {
+        assert_eq!(
+            terminal.backend().buffer()[(area.x + 7, area.y + 1)].modifier,
+            expected
+        );
+    }
+}
+
+#[test]
+fn unhovered_names_use_level_text_colours() {
+    let (mut state, _, theme, config, _) = fixture();
+    let terminal = draw(&mut state, &theme, &config);
+    let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
+    for (area, expected, icon_fg) in [
+        (
+            areas.columns[0],
+            theme.icons.session.fg.unwrap(),
+            theme.icons.session.fg.unwrap(),
+        ),
+        (
+            areas.columns[1],
+            theme.icons.window.fg.unwrap(),
+            theme.icons.window.fg.unwrap(),
+        ),
+        (areas.columns[2], Color::Reset, theme.icons.pane.fg.unwrap()),
+    ] {
+        let buffer = terminal.backend().buffer();
+        let name = &buffer[(area.x + 7, area.y + 2)];
+        assert_eq!(name.fg, expected);
+        assert!(name.modifier.is_empty());
+        assert_eq!(buffer[(area.x + 5, area.y + 2)].fg, icon_fg);
+    }
 }
