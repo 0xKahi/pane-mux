@@ -94,20 +94,32 @@ fn bottom_50_layout_and_current_columns() {
         let icon = &buffer[(area.x + 5, area.y + 1)];
         let name = &buffer[(area.x + 7, area.y + 1)];
         let marker = &buffer[(area.x + 3, area.y + 1)];
-        assert_eq!(
-            (icon.bg, icon.fg, icon.modifier),
-            (name.bg, name.fg, name.modifier)
-        );
-        assert_eq!(
-            (marker.bg, marker.fg, marker.modifier),
-            (name.bg, name.fg, name.modifier)
-        );
-        let expected = if area == areas.columns[0] {
-            Modifier::REVERSED
+        if area == areas.columns[0] {
+            // Reversed (filled) row: icon and marker share the row's style.
+            assert_eq!(
+                (icon.bg, icon.fg, icon.modifier),
+                (name.bg, name.fg, name.modifier)
+            );
+            assert_eq!(
+                (marker.bg, marker.fg, marker.modifier),
+                (name.bg, name.fg, name.modifier)
+            );
+            assert!(name.modifier.contains(Modifier::REVERSED));
         } else {
-            Modifier::UNDERLINED
-        };
-        assert!(name.modifier.contains(expected));
+            // Underline row: underline everywhere, but icon/marker keep their colours.
+            for cell in [icon, name, marker] {
+                assert!(cell.modifier.contains(Modifier::UNDERLINED));
+            }
+            let icon_theme = if area == areas.columns[1] {
+                &theme.icons.window
+            } else {
+                &theme.icons.pane
+            };
+            assert_eq!(icon.fg, icon_theme.fg.unwrap_or(Color::Reset));
+            if marker.symbol() == "*" {
+                assert_eq!(marker.fg, Color::Magenta);
+            }
+        }
     }
 }
 
@@ -413,11 +425,15 @@ fn column_roles_follow_focus_and_cover_full_row_width() {
                     assert_eq!(cell.fg, name.fg);
                     assert_eq!(cell.bg, Color::Reset);
                     assert!(cell.modifier.is_empty());
-                } else {
+                } else if reversed {
                     assert_eq!(
                         (cell.fg, cell.bg, cell.modifier),
                         (name.fg, name.bg, name.modifier)
                     );
+                } else {
+                    // Underline rows: same bg/modifiers across the width; icon and
+                    // marker cells may keep their own fg.
+                    assert_eq!((cell.bg, cell.modifier), (name.bg, name.modifier));
                     if edge {
                         assert_eq!(cell.symbol(), " ");
                     }

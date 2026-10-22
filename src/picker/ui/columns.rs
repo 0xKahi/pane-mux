@@ -93,7 +93,10 @@ fn column(
         } else {
             None
         };
-        let (open, close) = if cap_color.is_some() {
+        // A "filled" row (reversed or with a bg) drops the icon/marker colours so the
+        // background is uniform; underline-only rows keep them.
+        let filled = cap_color.is_some();
+        let (open, close) = if filled {
             (
                 theme.indicator.padding.open.as_str(),
                 theme.indicator.padding.close.as_str(),
@@ -122,7 +125,7 @@ fn column(
         } else {
             " ".repeat(Span::raw(&marker.text).width())
         };
-        let marker_style = if hovered {
+        let marker_style = if filled {
             Style::default()
         } else {
             Style::from(&marker.style)
@@ -133,7 +136,7 @@ fn column(
             Span::raw(" "),
         ];
         if !icon.text.is_empty() {
-            let icon_style = if hovered {
+            let icon_style = if filled {
                 Style::default()
             } else {
                 Style::default().fg(icon.fg.unwrap_or(Color::Reset))

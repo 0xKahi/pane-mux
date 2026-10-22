@@ -115,7 +115,7 @@ The picker SHALL mark the current session, window and pane (those of the tmux cl
 - **THEN** the `work` row reads `* <icon> work` with `*` in the active indicator colour
 
 ### Requirement: Hovered-row indicator
-Each column's hovered row SHALL be styled by position relative to the focused column (yazi's `[indicator]` model): the focused column uses `indicator.current`, columns to its left `indicator.parent` (both default `reversed`), columns to its right `indicator.preview` (default `underline`). The style SHALL be patched over the row's text style across the column's full inner width, and the icon and active marker SHALL NOT keep their own colours on a hovered row.
+Each column's hovered row SHALL be styled by position relative to the focused column (yazi's `[indicator]` model): the focused column uses `indicator.current`, columns to its left `indicator.parent` (both default `reversed`), columns to its right `indicator.preview` (default `underline`). The style SHALL be patched over the row's text style across the column's full inner width, and on a hovered row whose style has a `bg` or is `reversed` the icon and active marker SHALL NOT keep their own colours (uniform background). On underline-only rows the icon and marker SHALL keep their colours.
 
 #### Scenario: Focus on sessions
 - **WHEN** the sessions column is focused
@@ -128,6 +128,10 @@ Each column's hovered row SHALL be styled by position relative to the focused co
 #### Scenario: Uniform hover background
 - **WHEN** a session row with a coloured icon is hovered in a reversed column
 - **THEN** the icon cell and the name cells have the same background
+
+#### Scenario: Underline keeps colours
+- **WHEN** a row with a coloured icon and the `*` marker is hovered in a column right of the focused one
+- **THEN** the row is underlined and the icon and `*` keep their own colours
 
 ### Requirement: Hovered-row padding caps
 When a hovered row's indicator style has a `bg` or is `reversed`, the row SHALL start with `[indicator] padding.open` and end with `padding.close` at the column's right edge, drawn in the highlight colour against the terminal background. Otherwise (e.g. underline), and on unhovered rows, those positions SHALL be spaces.
