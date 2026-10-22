@@ -28,7 +28,8 @@
 ## 6. Pre-merge integration check
 
 - [x] 6.1 Run `just ci`, then `cargo publish --dry-run --locked --allow-dirty` (and again without `--allow-dirty` once committed); verify both succeed and the packaged crate builds from the `.crate` tarball in `target/package/`
-- [ ] 6.2 Push the branch and open a PR titled `ci: add CI and release-plz publishing`; verify the `ci` and `pr-title` workflows pass on the PR
+- [x] 6.2 Push the branch and open a PR titled `ci: add CI and release-plz publishing`; verify the `ci` and `pr-title` workflows pass on the PR
+  - Done in #1: `ci` passed. `pr-title` could not run on this PR because `pull_request_target` uses the workflow from `main`, which does not have it until merge; it takes effect from the next PR.
 
 ## Workflow follow-up
 
