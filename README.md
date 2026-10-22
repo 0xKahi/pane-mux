@@ -131,7 +131,7 @@ Theme sections and style keys:
 
 `[indicator] padding` sets the hovered-row caps (defaults `"\uE0B6"` and `"\uE0B4"`, matching yazi). Either side can be overridden independently. Caps use the highlight colour against the terminal background; styles without a background or reversal use spaces instead. `active` sets the current-item marker (default `*`, magenta) and accepts the same style fields listed above. Non-current rows reserve the marker's display width. Names are not restyled for current items.
 
-`[picker] session`, `window`, and `pane` set the base row text styles. Session names default to `#82AAFF`, window names to `lightcyan` (matching their default icons), and pane names to terminal defaults. Unhovered icons and markers retain their own colours.
+`[picker] session`, `window`, and `pane` set the base row text styles. Session names default to `#82AAFF`, window names to `lightcyan` (matching their default icons), and pane names to `white` (an explicit colour keeps the hover underline one colour). Unhovered icons and markers retain their own colours.
 
 Hovered rows patch an `[indicator]` style over the base style: columns left of focus use `parent` (default reversed), the focused column uses `current` (default reversed), and columns right of focus use `preview` (default underline). Marker, icon, name, and trailing fill inherit this uniform style across the entire inner width. Underlined rows have spaces instead of caps, including underlined edge spaces. Reversed caps use the patched foreground colour as their highlight colour. A default row reads `cap + space + marker + space + icon + space + name + fill + cap`; unhovered caps are spaces.
 
@@ -143,7 +143,7 @@ border = { fg = "#82aaff" }
 [picker]
 session = { fg = "#82AAFF" }
 window = { fg = "lightcyan" }
-pane = {}
+pane = { fg = "white" }
 
 [indicator]
 current = { bold = true, reversed = false, bg = "blue" }

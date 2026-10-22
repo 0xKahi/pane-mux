@@ -146,7 +146,7 @@ When a hovered row's indicator style has a `bg` or is `reversed`, the row SHALL 
 - **THEN** it is underlined and has spaces instead of caps
 
 ### Requirement: Row text colours
-Session and window names SHALL be drawn in the theme's `[picker] session` / `window` text styles, defaulting to the same colour as their icons. Pane names SHALL use the `[picker] pane` style, which defaults to the terminal's default colours.
+Session and window names SHALL be drawn in the theme's `[picker] session` / `window` text styles, defaulting to the same colour as their icons. Pane names SHALL use the `[picker] pane` style, which defaults to `white`.
 
 #### Scenario: Session name colour
 - **WHEN** no user theme is set

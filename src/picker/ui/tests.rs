@@ -483,7 +483,7 @@ fn unhovered_names_use_level_text_colours() {
             theme.icons.window.fg.unwrap(),
             theme.icons.window.fg.unwrap(),
         ),
-        (areas.columns[2], Color::Reset, theme.icons.pane.fg.unwrap()),
+        (areas.columns[2], Color::White, theme.icons.pane.fg.unwrap()),
     ] {
         let buffer = terminal.backend().buffer();
         let name = &buffer[(area.x + 7, area.y + 2)];

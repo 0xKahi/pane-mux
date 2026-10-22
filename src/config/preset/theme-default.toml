@@ -4,7 +4,7 @@
 border = { fg = "gray" }
 session = { fg = "#82AAFF" }
 window = { fg = "lightcyan" }
-pane = {}
+pane = { fg = "white" }
 header = { fg = "lightgreen" }
 
 [indicator]
