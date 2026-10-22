@@ -3,7 +3,7 @@
 use super::Outcome;
 use crate::{
     config::Loaded,
-    picker::{self, PickerOptions},
+    picker::{self, PickerOptions, SessionOrder},
     tmux::{Level, Tmux},
 };
 use anyhow::Result;
@@ -20,6 +20,7 @@ pub fn run(level: Option<Level>, tmux: &dyn Tmux, loaded: &Loaded) -> Result<Out
         PickerOptions {
             level,
             header: header.into(),
+            order: SessionOrder::Name,
         },
         tmux,
         loaded,

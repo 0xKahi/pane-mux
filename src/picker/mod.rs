@@ -10,7 +10,7 @@ pub mod ui;
 pub mod which;
 
 pub use app::run;
-pub use options::PickerOptions;
+pub use options::{PickerOptions, SessionOrder};
 pub use popup::{InputPurpose, Popup};
 pub use state::{Exit, Preview, State};
 pub use which::Which;

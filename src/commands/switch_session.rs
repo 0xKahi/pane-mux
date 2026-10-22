@@ -3,7 +3,7 @@
 use super::Outcome;
 use crate::{
     config::Loaded,
-    picker::{self, PickerOptions},
+    picker::{self, PickerOptions, SessionOrder},
     tmux::Tmux,
 };
 use anyhow::{Result, ensure};
@@ -17,6 +17,7 @@ pub fn run(tmux: &dyn Tmux, loaded: &Loaded) -> Result<Outcome> {
     let options = PickerOptions {
         level: None,
         header: "[Switch]".into(),
+        order: SessionOrder::Recent,
     };
     match picker::run(options, tmux, loaded)? {
         Some(target) => {

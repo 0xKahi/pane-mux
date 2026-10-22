@@ -26,6 +26,7 @@ fn private_server_tree_capture_and_mutations() {
     let tree = client.tree().unwrap();
     assert_eq!(tree.sessions.len(), 2);
     let work = tree.sessions.iter().find(|s| s.id == session).unwrap();
+    assert_eq!(work.last_attached, 0);
     let logs = work.windows.iter().find(|w| w.id == window).unwrap();
     assert_eq!(logs.name, "name with spaces");
     let pane = &logs.panes[0].id;

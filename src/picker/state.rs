@@ -1,11 +1,13 @@
 //! Picker state and synchronous action handling, independent of terminal rendering.
 
+use std::cmp::Reverse;
+
 use anyhow::Result;
 use crossterm::event::KeyCode;
 
 use super::{
     action::{Action, Direction, Step},
-    options::PickerOptions,
+    options::{PickerOptions, SessionOrder},
     popup::{InputPurpose, Popup},
     which::Which,
 };
@@ -56,14 +58,13 @@ impl State {
         current: Option<Current>,
         suppressed_pane: Option<String>,
     ) -> Self {
-        let session = tree.sessions.first().map(|s| s.id.clone());
         let mut state = Self {
             options,
             tree,
             current,
             suppressed_pane,
             focus: Level::Session,
-            session,
+            session: None,
             window: None,
             pane: None,
             preview: Preview::default(),
@@ -73,6 +74,8 @@ impl State {
             list_height: 10,
             preview_height: 10,
         };
+        state.sort_sessions();
+        state.session = state.tree.sessions.first().map(|s| s.id.clone());
         state.reset_window();
         state
     }
@@ -86,6 +89,19 @@ impl State {
         let mut state = Self::new(options, tmux.tree()?, tmux.current()?, suppressed_pane);
         state.update_preview(tmux)?;
         Ok(state)
+    }
+
+    fn sort_sessions(&mut self) {
+        if self.options.order == SessionOrder::Recent {
+            let current = self.current.as_ref().map(|c| c.session_id.as_str());
+            self.tree.sessions.sort_by_key(|s| {
+                (
+                    Some(s.id.as_str()) != current,
+                    Reverse(s.last_attached),
+                    s.name.clone(),
+                )
+            });
+        }
     }
 
     pub fn sessions(&self) -> &[Session] {
@@ -231,6 +247,7 @@ impl State {
                 .unwrap_or(0)
         });
         self.tree = tmux.tree()?;
+        self.sort_sessions();
         for (level, position) in levels.into_iter().zip(positions) {
             let ids = self.ids(level);
             if !ids.iter().any(|id| Some(id) == self.cursor(level).as_ref()) {

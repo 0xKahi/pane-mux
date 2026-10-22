@@ -22,6 +22,11 @@ flag, the focused column determines the output. The UI uses stderr (or
 
 `switch-session` requires tmux and switches the current client to the picked
 target, including its window and pane when selected. It prints no target.
+Sessions are listed current first, then most recently attached on the tmux server.
+Ties are ordered by name; never-attached sessions come last, also by name.
+The cursor opens on the current session and stays on its session when the list
+refreshes. `pane-mux picker` lists sessions by name instead. Windows and panes
+keep their existing order in both commands.
 
 | Exit code | Meaning |
 | --- | --- |

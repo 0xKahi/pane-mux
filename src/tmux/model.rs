@@ -11,6 +11,7 @@ pub struct Tree {
 pub struct Session {
     pub id: String,
     pub name: String,
+    pub last_attached: u64,
     pub windows: Vec<Window>,
 }
 

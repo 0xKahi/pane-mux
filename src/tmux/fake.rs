@@ -126,6 +126,7 @@ impl Tmux for FakeTmux {
         tree.sessions.push(Session {
             id: id.clone(),
             name,
+            last_attached: 0,
             windows: vec![self.window(0, None, true)],
         });
         Ok(id)
@@ -262,6 +263,7 @@ pub fn sample_tree(names: &[&str]) -> Tree {
             .map(|(index, name)| Session {
                 id: format!("${index}"),
                 name: (*name).into(),
+                last_attached: 0,
                 windows: vec![Window {
                     id: format!("@{index}"),
                     index: 0,

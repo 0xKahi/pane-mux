@@ -55,6 +55,7 @@ fn fixture() -> (State, FakeTmux, Theme, PickerConfig, Keymap) {
         PickerOptions {
             level: None,
             header: "[Pick session]".into(),
+            ..PickerOptions::default()
         },
         &fake,
         None,

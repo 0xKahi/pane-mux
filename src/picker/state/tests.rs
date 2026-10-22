@@ -68,6 +68,147 @@ fn type_text(state: &mut State, fake: &FakeTmux, text: &str) {
 }
 
 #[test]
+fn recent_order_pins_current_and_opens_cursor_on_it() {
+    let mut tree = sample_tree(&["notes", "work", "older"]);
+    for (session, time) in tree.sessions.iter_mut().zip([300, 100, 200]) {
+        session.last_attached = time;
+    }
+    let current = Current {
+        session_id: "$1".into(),
+        window_id: "@1".into(),
+        pane_id: "%1".into(),
+    };
+    let fake = FakeTmux::new(tree.clone()).with_current(current);
+    let state = State::load(
+        PickerOptions {
+            order: SessionOrder::Recent,
+            ..PickerOptions::default()
+        },
+        &fake,
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        state
+            .sessions()
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect::<Vec<_>>(),
+        ["work", "notes", "older"]
+    );
+    assert_eq!(state.session.as_deref(), Some("$1"));
+    assert_eq!(state.window.as_deref(), Some("@1"));
+    assert_eq!(state.pane.as_deref(), Some("%1"));
+    for session in state.sessions() {
+        assert_eq!(
+            session.windows,
+            tree.sessions
+                .iter()
+                .find(|s| s.id == session.id)
+                .unwrap()
+                .windows
+        );
+    }
+}
+
+#[test]
+fn recent_order_without_current_sorts_newest_then_ties_and_never_attached_by_name() {
+    let mut tree = sample_tree(&["zeta", "beta", "newest", "alpha", "aardvark", "older"]);
+    for (session, time) in tree.sessions.iter_mut().zip([0, 200, 300, 0, 200, 100]) {
+        session.last_attached = time;
+    }
+    let state = State::new(
+        PickerOptions {
+            order: SessionOrder::Recent,
+            ..PickerOptions::default()
+        },
+        tree,
+        None,
+        None,
+    );
+    assert_eq!(
+        state
+            .sessions()
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect::<Vec<_>>(),
+        ["newest", "aardvark", "beta", "older", "alpha", "zeta"]
+    );
+    assert_eq!(state.session.as_deref(), Some("$2"));
+}
+
+#[test]
+fn recent_order_refresh_reorders_without_losing_cursor() {
+    let mut tree = sample_tree(&["kahi", "pmux", "scratch", "shuffle-be"]);
+    for (session, time) in tree.sessions.iter_mut().zip([100, 300, 0, 200]) {
+        session.last_attached = time;
+    }
+    let fake = FakeTmux::new(tree.clone()).with_current(Current {
+        session_id: "$1".into(),
+        window_id: "@1".into(),
+        pane_id: "%1".into(),
+    });
+    let mut state = State::load(
+        PickerOptions {
+            order: SessionOrder::Recent,
+            ..PickerOptions::default()
+        },
+        &fake,
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        state
+            .sessions()
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect::<Vec<_>>(),
+        ["pmux", "shuffle-be", "kahi", "scratch"]
+    );
+    key(&mut state, &fake, "j");
+    key(&mut state, &fake, "j");
+    assert_eq!(state.session.as_deref(), Some("$0"));
+    let cursors = (
+        state.session.clone(),
+        state.window.clone(),
+        state.pane.clone(),
+    );
+
+    tree.sessions[2].last_attached = 400;
+    let refreshed = FakeTmux::new(tree);
+    assert!(state.refresh(&refreshed).unwrap());
+    assert_eq!(
+        state
+            .sessions()
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect::<Vec<_>>(),
+        ["pmux", "scratch", "shuffle-be", "kahi"]
+    );
+    assert_eq!((state.session, state.window, state.pane), cursors);
+}
+
+#[test]
+fn name_order_preserves_snapshot_despite_recency_and_current() {
+    let mut tree = sample_tree(&["alpha", "beta", "zeta"]);
+    for (session, time) in tree.sessions.iter_mut().zip([0, 300, 100]) {
+        session.last_attached = time;
+    }
+    let fake = FakeTmux::new(tree.clone()).with_current(Current {
+        session_id: "$2".into(),
+        window_id: "@2".into(),
+        pane_id: "%2".into(),
+    });
+    let mut state = state(&fake);
+    assert_eq!(state.options.order, SessionOrder::Name);
+    assert_eq!(state.tree, tree);
+    assert_eq!(state.session.as_deref(), Some("$0"));
+    state.refresh(&fake).unwrap();
+    assert_eq!(state.tree, tree);
+    assert_eq!(state.session.as_deref(), Some("$0"));
+}
+
+#[test]
 fn initial_view_and_current_markers() {
     let fake = fixture();
     let state = state(&fake);
