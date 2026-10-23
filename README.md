@@ -38,7 +38,7 @@ bind o popup -w 75% -h 75% -x C -y C -E 'pane-mux switch-session'
 
 Reload tmux (`tmux source-file ~/.tmux.conf`), then press `<prefix> o`.
 
-See [docs/ussage-examples.md](docs/ussage-examples.md) for more examples.
+See [docs/usage-examples.md](docs/usage-examples.md) for more examples.
 
 ## Configuration
 
