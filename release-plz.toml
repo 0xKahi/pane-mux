@@ -1,0 +1,7 @@
+[workspace]
+# The library target exists to support the binary and tests; it is not a public API.
+semver_check = false
+# Generate CHANGELOG.md from conventional commits (squash-merged PR titles).
+changelog_update = true
+# Tag `v{{ version }}` (default) and create a GitHub Release on publish.
+git_release_enable = true

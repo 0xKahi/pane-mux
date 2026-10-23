@@ -143,11 +143,11 @@ fn presets_load_without_user_directory() {
 }
 
 #[test]
-fn readme_toml_examples_parse_over_presets() {
+fn documented_toml_examples_parse_over_presets() {
     let mut kind = None;
     let mut block = None;
     let mut count = 0;
-    for line in include_str!("../README.md").lines() {
+    for line in include_str!("../docs/configuration.md").lines() {
         if let Some(text) = block.as_mut() {
             if line == "```" {
                 let text: String = block.take().unwrap();

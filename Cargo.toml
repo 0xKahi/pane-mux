@@ -3,6 +3,14 @@ name = "pane-mux"
 version = "0.1.0"
 edition = "2024"
 description = "A yazi-style picker for tmux sessions, windows and panes"
+license = "MIT"
+repository = "https://github.com/0xKahi/pane-mux"
+homepage = "https://github.com/0xKahi/pane-mux"
+readme = "README.md"
+keywords = ["tmux", "picker", "tui", "terminal", "cli"]
+categories = ["command-line-utilities"]
+rust-version = "1.88"
+include = ["src/**/*", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE", "CHANGELOG.md"]
 
 [dependencies]
 anyhow = "1"
