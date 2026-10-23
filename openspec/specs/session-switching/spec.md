@@ -43,15 +43,27 @@ Quitting the picker without picking SHALL leave the client unchanged and exit wi
 - **THEN** the client is not switched and the exit code is 130
 
 ### Requirement: Sessions ordered by recency
-While running under `switch-session`, the picker's sessions column SHALL list the invoking client's current session first, then every other session from most to least recently attached on the tmux server. Sessions with equal attach times, and sessions that were never attached, SHALL be ordered by name, and never-attached sessions SHALL come last. The cursor SHALL open on the first row.
+While running under `switch-session`, the picker's sessions column SHALL list the invoking client's current session first, then every other session from most to least recently attached on the tmux server. Sessions with equal attach times, and sessions that were never attached, SHALL be ordered by name, and never-attached sessions SHALL come last. The cursor SHALL open on the first non-current session, else on the first row.
 
 #### Scenario: Current first, then most recent
 - **WHEN** the client is on `pmux`, previously switched from `shuffle-be`, before that from `kahi`, and `scratch` exists, and the user runs `pane-mux switch-session`
-- **THEN** the sessions column lists `pmux`, `shuffle-be`, `kahi`, `scratch` in that order, with the cursor on `pmux`
+- **THEN** the sessions column lists `pmux`, `shuffle-be`, `kahi`, `scratch` in that order, with the cursor on `shuffle-be`
+
+#### Scenario: Enter right away switches to the previous session
+- **WHEN** the client is on `pmux`, previously switched from `shuffle-be`, and the user runs `pane-mux switch-session` and presses `<Enter>` without moving the cursor
+- **THEN** the client switches to `shuffle-be`
+
+#### Scenario: Only the current session exists
+- **WHEN** `work` is the only session and the client on `work` runs `pane-mux switch-session`
+- **THEN** the sessions column lists only `work`, with the cursor on `work`
+
+#### Scenario: Current session unknown
+- **WHEN** the invoking client's current session cannot be determined or is not in the session list, and sessions `notes` and `work` exist with `notes` attached more recently
+- **THEN** the sessions column lists `notes` then `work`, with the cursor on `notes`
 
 #### Scenario: Current session pinned above a more recent one
 - **WHEN** another client attached to `notes` after the invoking client last switched to `work`, and the invoking client runs `pane-mux switch-session` while on `work`
-- **THEN** `work` is listed first and `notes` second
+- **THEN** `work` is listed first and `notes` second, with the cursor on `notes`
 
 #### Scenario: Never-attached sessions last, by name
 - **WHEN** sessions `zeta` and `alpha` have never been attached and `work` has been attached

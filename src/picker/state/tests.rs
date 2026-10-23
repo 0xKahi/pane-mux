@@ -302,7 +302,7 @@ fn escape_order_and_finder_survives_refresh() {
 }
 
 #[test]
-fn recent_order_pins_current_and_opens_cursor_on_it() {
+fn recent_order_pins_current_and_opens_cursor_on_previous_session() {
     let mut tree = sample_tree(&["notes", "work", "older"]);
     for (session, time) in tree.sessions.iter_mut().zip([300, 100, 200]) {
         session.last_attached = time;
@@ -330,9 +330,9 @@ fn recent_order_pins_current_and_opens_cursor_on_it() {
             .collect::<Vec<_>>(),
         ["work", "notes", "older"]
     );
-    assert_eq!(state.session.as_deref(), Some("$1"));
-    assert_eq!(state.window.as_deref(), Some("@1"));
-    assert_eq!(state.pane.as_deref(), Some("%1"));
+    assert_eq!(state.session.as_deref(), Some("$0"));
+    assert_eq!(state.window.as_deref(), Some("@0"));
+    assert_eq!(state.pane.as_deref(), Some("%0"));
     for session in state.sessions() {
         assert_eq!(
             session.windows,
@@ -399,7 +399,7 @@ fn recent_order_refresh_reorders_without_losing_cursor() {
             .collect::<Vec<_>>(),
         ["pmux", "shuffle-be", "kahi", "scratch"]
     );
-    key(&mut state, &fake, "j");
+    assert_eq!(state.session.as_deref(), Some("$3"));
     key(&mut state, &fake, "j");
     assert_eq!(state.session.as_deref(), Some("$0"));
     let cursors = (
@@ -420,6 +420,61 @@ fn recent_order_refresh_reorders_without_losing_cursor() {
         ["pmux", "scratch", "shuffle-be", "kahi"]
     );
     assert_eq!((state.session, state.window, state.pane), cursors);
+}
+
+fn recent_state(tree: Tree, current: Option<Current>) -> State {
+    State::new(
+        PickerOptions {
+            order: SessionOrder::Recent,
+            ..PickerOptions::default()
+        },
+        tree,
+        current,
+        None,
+    )
+}
+
+fn current_on(index: usize) -> Current {
+    Current {
+        session_id: format!("${index}"),
+        window_id: format!("@{index}"),
+        pane_id: format!("%{index}"),
+    }
+}
+
+#[test]
+fn recent_order_single_session_opens_cursor_on_current() {
+    let state = recent_state(sample_tree(&["work"]), Some(current_on(0)));
+    assert_eq!(state.session.as_deref(), Some("$0"));
+    assert_eq!(state.window.as_deref(), Some("@0"));
+    assert_eq!(state.pane.as_deref(), Some("%0"));
+}
+
+#[test]
+fn recent_order_without_current_opens_cursor_on_first_row() {
+    let mut tree = sample_tree(&["work", "notes"]);
+    tree.sessions[1].last_attached = 300;
+    tree.sessions[0].last_attached = 100;
+    let state = recent_state(tree, None);
+    assert_eq!(state.sessions()[0].name, "notes");
+    assert_eq!(state.session.as_deref(), Some("$1"));
+}
+
+#[test]
+fn recent_order_with_unknown_current_opens_cursor_on_first_row() {
+    let mut tree = sample_tree(&["work", "notes"]);
+    tree.sessions[1].last_attached = 300;
+    tree.sessions[0].last_attached = 100;
+    let state = recent_state(tree, Some(current_on(9)));
+    assert_eq!(state.sessions()[0].name, "notes");
+    assert_eq!(state.session.as_deref(), Some("$1"));
+}
+
+#[test]
+fn name_order_opens_cursor_on_first_row_even_when_current() {
+    let fake = FakeTmux::new(sample_tree(&["alpha", "beta"])).with_current(current_on(0));
+    let state = state(&fake);
+    assert_eq!(state.session.as_deref(), Some("$0"));
 }
 
 #[test]

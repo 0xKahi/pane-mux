@@ -78,9 +78,22 @@ impl State {
             preview_height: 10,
         };
         state.sort_sessions();
-        state.session = state.tree.sessions.first().map(|s| s.id.clone());
+        state.session = state.initial_session();
         state.reset_window();
         state
+    }
+
+    /// Under recency order, open on the first non-current session; otherwise
+    /// (or when none exists) open on the first session.
+    fn initial_session(&self) -> Option<String> {
+        let sessions = &self.tree.sessions;
+        let previous = match (self.options.order, &self.current) {
+            (SessionOrder::Recent, Some(current)) => {
+                sessions.iter().find(|s| s.id != current.session_id)
+            }
+            _ => None,
+        };
+        previous.or_else(|| sessions.first()).map(|s| s.id.clone())
     }
 
     /// Load initial server data. Startup errors propagate to the command.
