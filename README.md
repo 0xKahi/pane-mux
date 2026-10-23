@@ -91,7 +91,9 @@ its window and pane when selected. It prints no target.
 
 Sessions are listed current first, then most recently attached on the tmux
 server. Ties are ordered by name; never-attached sessions come last, also by
-name. The cursor opens on the current session and stays on its session when the
+name. The cursor opens on the session below the current one (the most recently
+used other session), so `<Enter>` right away switches back to it; with no other
+session it opens on the current one. The cursor stays on its session when the
 list refreshes. Windows and panes keep their existing order.
 
 #### Examples
