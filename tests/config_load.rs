@@ -77,6 +77,19 @@ fn invalid_ratio_names_config_file_and_setting() {
 }
 
 #[test]
+fn invalid_switch_session_exclusions_name_config_file_and_setting() {
+    let dir = TempDir::new();
+    dir.write(
+        "config.toml",
+        "[switch-session]\nexclude_from_recency = \"_popup\"",
+    );
+    let error = config::load_from(Some(&dir.0)).unwrap_err();
+    let message = format!("{error:#}");
+    assert!(message.contains(&dir.0.join("config.toml").display().to_string()));
+    assert!(message.contains("exclude_from_recency"));
+}
+
+#[test]
 fn unknown_key_names_file_and_key() {
     let dir = TempDir::new();
     dir.write(
@@ -178,5 +191,5 @@ fn documented_toml_examples_parse_over_presets() {
         }
     }
     assert!(block.is_none(), "unclosed TOML fence");
-    assert_eq!(count, 3, "expected all three documented file examples");
+    assert_eq!(count, 4, "expected all four documented file examples");
 }

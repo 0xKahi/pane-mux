@@ -16,4 +16,5 @@ pub struct PickerOptions {
     pub level: Option<Level>,
     pub header: String,
     pub order: SessionOrder,
+    pub recency_exclude: Vec<String>,
 }

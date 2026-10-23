@@ -111,9 +111,11 @@ impl State {
         if self.options.order == SessionOrder::Recent {
             let current = self.current.as_ref().map(|c| c.session_id.as_str());
             self.tree.sessions.sort_by_key(|s| {
+                let excluded = self.options.recency_exclude.contains(&s.name);
                 (
                     Some(s.id.as_str()) != current,
-                    Reverse(s.last_attached),
+                    excluded,
+                    Reverse(if excluded { 0 } else { s.last_attached }),
                     s.name.clone(),
                 )
             });

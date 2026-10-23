@@ -423,15 +423,123 @@ fn recent_order_refresh_reorders_without_losing_cursor() {
 }
 
 fn recent_state(tree: Tree, current: Option<Current>) -> State {
+    recent_state_with_exclusions(tree, current, &[])
+}
+
+fn recent_state_with_exclusions(tree: Tree, current: Option<Current>, excluded: &[&str]) -> State {
     State::new(
         PickerOptions {
             order: SessionOrder::Recent,
+            recency_exclude: excluded.iter().map(|name| (*name).into()).collect(),
             ..PickerOptions::default()
         },
         tree,
         current,
         None,
     )
+}
+
+fn session_names(state: &State) -> Vec<&str> {
+    state.sessions().iter().map(|s| s.name.as_str()).collect()
+}
+
+#[test]
+fn recent_order_excluded_session_follows_ranked_sessions() {
+    let mut tree = sample_tree(&["session1", "session2", "session3", "session4"]);
+    for (session, time) in tree.sessions.iter_mut().zip([400, 300, 200, 100]) {
+        session.last_attached = time;
+    }
+    let state = recent_state_with_exclusions(tree, Some(current_on(0)), &["session2"]);
+    assert_eq!(
+        session_names(&state),
+        ["session1", "session3", "session4", "session2"]
+    );
+    assert_eq!(state.session.as_deref(), Some("$2"));
+}
+
+#[test]
+fn recent_order_excluded_sessions_sort_by_name_despite_recency() {
+    let mut tree = sample_tree(&["current", "zeta", "alpha", "work"]);
+    for (session, time) in tree.sessions.iter_mut().zip([400, 300, 200, 100]) {
+        session.last_attached = time;
+    }
+    let state = recent_state_with_exclusions(tree, Some(current_on(0)), &["zeta", "alpha"]);
+    assert_eq!(session_names(&state), ["current", "work", "alpha", "zeta"]);
+    assert_eq!(state.session.as_deref(), Some("$3"));
+}
+
+#[test]
+fn recent_order_excluded_session_follows_never_attached_session() {
+    let mut tree = sample_tree(&["current", "scratch", "fresh"]);
+    for (session, time) in tree.sessions.iter_mut().zip([100, 300, 0]) {
+        session.last_attached = time;
+    }
+    let state = recent_state_with_exclusions(tree, Some(current_on(0)), &["scratch"]);
+    assert_eq!(session_names(&state), ["current", "fresh", "scratch"]);
+    assert_eq!(state.session.as_deref(), Some("$2"));
+}
+
+#[test]
+fn recent_order_excluded_current_stays_first() {
+    let mut tree = sample_tree(&["_popup", "work"]);
+    for (session, time) in tree.sessions.iter_mut().zip([300, 100]) {
+        session.last_attached = time;
+    }
+    let state = recent_state_with_exclusions(tree, Some(current_on(0)), &["_popup"]);
+    assert_eq!(session_names(&state), ["_popup", "work"]);
+    assert_eq!(state.session.as_deref(), Some("$1"));
+}
+
+#[test]
+fn recent_order_only_excluded_sessions_opens_cursor_on_first_by_name() {
+    let mut tree = sample_tree(&["work", "b-scratch", "a-popup"]);
+    for (session, time) in tree.sessions.iter_mut().zip([100, 300, 200]) {
+        session.last_attached = time;
+    }
+    let state = recent_state_with_exclusions(tree, Some(current_on(0)), &["b-scratch", "a-popup"]);
+    assert_eq!(session_names(&state), ["work", "a-popup", "b-scratch"]);
+    assert_eq!(state.session.as_deref(), Some("$2"));
+}
+
+#[test]
+fn recent_order_unknown_excluded_name_is_ignored() {
+    let mut tree = sample_tree(&["current", "older", "newest", "fresh"]);
+    for (session, time) in tree.sessions.iter_mut().zip([200, 100, 300, 0]) {
+        session.last_attached = time;
+    }
+    let expected = recent_state(tree.clone(), Some(current_on(0)));
+    let state = recent_state_with_exclusions(tree, Some(current_on(0)), &["missing"]);
+    assert_eq!(session_names(&state), session_names(&expected));
+    assert_eq!(state.session, expected.session);
+}
+
+#[test]
+fn recent_order_refresh_excluded_session_attachment_preserves_position_and_cursor() {
+    let mut tree = sample_tree(&["current", "work", "scratch", "a-popup"]);
+    for (session, time) in tree.sessions.iter_mut().zip([300, 200, 0, 100]) {
+        session.last_attached = time;
+    }
+    let mut state =
+        recent_state_with_exclusions(tree.clone(), Some(current_on(0)), &["scratch", "a-popup"]);
+    assert_eq!(
+        session_names(&state),
+        ["current", "work", "a-popup", "scratch"]
+    );
+    assert_eq!(state.session.as_deref(), Some("$1"));
+    let cursors = (
+        state.session.clone(),
+        state.window.clone(),
+        state.pane.clone(),
+    );
+
+    tree.sessions[2].last_attached = 400;
+    let refreshed = FakeTmux::new(tree);
+    assert!(state.refresh(&refreshed).unwrap());
+    assert_eq!(
+        session_names(&state),
+        ["current", "work", "a-popup", "scratch"]
+    );
+    assert_eq!((state.session, state.window, state.pane), cursors);
 }
 
 fn current_on(index: usize) -> Current {

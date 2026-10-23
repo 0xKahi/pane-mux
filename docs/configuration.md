@@ -15,6 +15,16 @@ preview_position = "top"
 preview_ratio = 75
 ```
 
+## Switch-session settings
+
+In `config.toml`, `[switch-session] exclude_from_recency` is a list of exact session names (default `[]`). These sessions remain pickable but are listed last, ordered by name instead of recency. The current session always stays first, even if excluded. Unmatched names are ignored; renamed sessions drop out of exclusion unless their new name is also listed. This setting does not affect `pane-mux picker`.
+
+<!-- config.toml -->
+```toml
+[switch-session]
+exclude_from_recency = ["_popup", "scratch"]
+```
+
 ## Key bindings
 
 `keymap.toml` has four independent layers: `[picker]`, `[input]`, `[confirm]`, and `[help]`. Within each:

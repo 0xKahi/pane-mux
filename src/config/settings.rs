@@ -10,6 +10,15 @@ use super::merge;
 #[serde(deny_unknown_fields)]
 pub struct Config {
     pub picker: PickerConfig,
+    #[serde(rename = "switch-session")]
+    pub switch_session: SwitchSessionConfig,
+}
+
+/// Session recency ranking settings for switch-session.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SwitchSessionConfig {
+    pub exclude_from_recency: Vec<String>,
 }
 
 /// Preview sizing and placement.
@@ -52,6 +61,42 @@ impl Config {
 mod tests {
     use super::*;
     use crate::config::preset;
+
+    #[test]
+    fn default_switch_session_exclusions_are_empty() {
+        let config = Config::from_toml(&preset::config(), None).unwrap();
+        assert!(config.switch_session.exclude_from_recency.is_empty());
+    }
+
+    #[test]
+    fn user_switch_session_exclusions_replace_default() {
+        let config = Config::from_toml(
+            &preset::config(),
+            Some("[switch-session]\nexclude_from_recency = [\"_popup\", \"scratch\"]"),
+        )
+        .unwrap();
+        assert_eq!(
+            config.switch_session.exclude_from_recency,
+            ["_popup", "scratch"]
+        );
+    }
+
+    #[test]
+    fn invalid_switch_session_exclusions_name_setting() {
+        let error = Config::from_toml(
+            &preset::config(),
+            Some("[switch-session]\nexclude_from_recency = \"_popup\""),
+        )
+        .unwrap_err();
+        assert!(format!("{error:#}").contains("exclude_from_recency"));
+    }
+
+    #[test]
+    fn unknown_switch_session_key_errors() {
+        let error = Config::from_toml(&preset::config(), Some("[switch-session]\nsurprise = true"))
+            .unwrap_err();
+        assert!(format!("{error:#}").contains("surprise"));
+    }
 
     #[test]
     fn partial_override_keeps_default_ratio() {
