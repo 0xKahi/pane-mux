@@ -18,6 +18,7 @@ pub fn run(tmux: &dyn Tmux, loaded: &Loaded) -> Result<Outcome> {
         level: None,
         header: "[Switch]".into(),
         order: SessionOrder::Recent,
+        recency_exclude: loaded.config.switch_session.exclude_from_recency.clone(),
     };
     match picker::run(options, tmux, loaded)? {
         Some(target) => {

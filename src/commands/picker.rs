@@ -21,6 +21,7 @@ pub fn run(level: Option<Level>, tmux: &dyn Tmux, loaded: &Loaded) -> Result<Out
             level,
             header: header.into(),
             order: SessionOrder::Name,
+            recency_exclude: Vec::new(),
         },
         tmux,
         loaded,
