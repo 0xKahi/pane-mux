@@ -160,21 +160,15 @@ impl Tmux for TmuxCli {
         name: Option<&str>,
     ) -> Result<String> {
         let target = format!("{session_id}:");
-        let mut args = vec![
-            "break-pane",
-            "-d",
-            "-P",
-            "-F",
-            "#{window_id}",
-            "-s",
-            pane_id,
-            "-t",
-            &target,
-        ];
+        let mut args = vec!["break-pane", "-d", "-s", pane_id, "-t", &target];
         if let Some(name) = name {
             args.extend(["-n", name]);
         }
-        Ok(self.run(&args)?.trim().into())
+        self.run(&args)?;
+        // Ask for the window afterwards: tmux before 3.8 prints nothing for
+        // `break-pane -P` when the pane was alone in its window.
+        let window = self.run(&["display-message", "-p", "-t", pane_id, "#{window_id}"])?;
+        Ok(window.trim().into())
     }
 
     fn float_pane_in_window(

@@ -11,6 +11,26 @@ impl Drop for ServerGuard {
     }
 }
 
+/// Query the private server, not an unrelated tmux binary/server version.
+fn supports_floating(client: &TmuxCli) -> bool {
+    let version = client
+        .run(&["display-message", "-p", "#{version}"])
+        .unwrap();
+    let (major, minor) = version
+        .trim()
+        .split_once('.')
+        .expect("tmux major.minor version");
+    let major: u32 = major.parse().expect("tmux major version");
+    // Release suffixes such as 3.8a do not change the capability boundary.
+    let minor: u32 = minor
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect::<String>()
+        .parse()
+        .expect("tmux minor version");
+    (major, minor) >= (3, 8)
+}
+
 #[test]
 fn private_server_tree_capture_and_mutations() {
     if std::env::var("PANE_MUX_TMUX_TESTS").as_deref() != Ok("1") {
@@ -87,8 +107,11 @@ fn private_server_tree_capture_and_mutations() {
     client.kill_window(&extra).unwrap();
     client.kill_session(&other).unwrap();
     assert_eq!(client.tree().unwrap().sessions.len(), 1);
-    pane_moves(&client, &session);
-    floating_source_moves(&client, &session);
+    let floating_supported = supports_floating(&client);
+    pane_moves(&client, &session, floating_supported);
+    if floating_supported {
+        floating_source_moves(&client, &session);
+    }
 }
 
 fn floating_source_moves(client: &TmuxCli, source_session: &str) {
@@ -192,7 +215,7 @@ fn floating_source_moves(client: &TmuxCli, source_session: &str) {
     }
 }
 
-fn pane_moves(client: &TmuxCli, source_session: &str) {
+fn pane_moves(client: &TmuxCli, source_session: &str, floating_supported: bool) {
     use pane_mux::config::settings::{FloatingPaneConfig, FloatingPosition};
 
     // Keep a separate source window alive throughout detached moves.
@@ -302,9 +325,17 @@ fn pane_moves(client: &TmuxCli, source_session: &str) {
         height: 30,
         position: FloatingPosition::BottomCentre,
     };
-    client
-        .float_pane_in_window(&pane, &destination, &floating)
-        .unwrap();
+    let result = client.float_pane_in_window(&pane, &destination, &floating);
+    if floating_supported {
+        result.unwrap();
+    } else {
+        let error = result.unwrap_err().to_string();
+        assert!(
+            error.contains("tmux break-pane:") && error.contains("unknown flag -W"),
+            "{error}"
+        );
+        // join-pane already moved the pane; unsupported floating leaves it tiled.
+    }
     let tree = client.tree().unwrap();
     let windows = &tree
         .sessions
@@ -314,26 +345,31 @@ fn pane_moves(client: &TmuxCli, source_session: &str) {
         .windows;
     assert!(!windows.iter().any(|w| w.id == new_window));
     let target = windows.iter().find(|w| w.id == destination).unwrap();
-    assert!(target.panes.iter().find(|p| p.id == pane).unwrap().floating);
-    let geometry = client
-        .run(&[
-            "display-message",
-            "-p",
-            "-t",
-            &pane,
-            "#{pane_width} #{pane_height} #{pane_left} #{pane_top}",
-        ])
-        .unwrap();
-    let geometry: Vec<u32> = geometry
-        .split_whitespace()
-        .map(|v| v.parse().unwrap())
-        .collect();
-    // Requested percentages include the two border cells.
-    assert_eq!(geometry[0] + 2, 160);
-    assert_eq!(geometry[1] + 2, 30);
-    // Floating borders occupy one cell on each side.
-    assert!(geometry[2].abs_diff(20) <= 1, "{geometry:?}");
-    assert!(geometry[3].abs_diff(70) <= 2, "{geometry:?}");
+    assert_eq!(
+        target.panes.iter().find(|p| p.id == pane).unwrap().floating,
+        floating_supported
+    );
+    if floating_supported {
+        let geometry = client
+            .run(&[
+                "display-message",
+                "-p",
+                "-t",
+                &pane,
+                "#{pane_width} #{pane_height} #{pane_left} #{pane_top}",
+            ])
+            .unwrap();
+        let geometry: Vec<u32> = geometry
+            .split_whitespace()
+            .map(|v| v.parse().unwrap())
+            .collect();
+        // Requested percentages include the two border cells.
+        assert_eq!(geometry[0] + 2, 160);
+        assert_eq!(geometry[1] + 2, 30);
+        // Floating borders occupy one cell on each side.
+        assert!(geometry[2].abs_diff(20) <= 1, "{geometry:?}");
+        assert!(geometry[3].abs_diff(70) <= 2, "{geometry:?}");
+    }
     assert_eq!(active(), current);
 
     // Exercise break-pane's split-pane path too (not just whole-window moves).
