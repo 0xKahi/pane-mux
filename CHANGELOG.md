@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/0xKahi/pane-mux/compare/v0.1.1...v0.2.0) - 2026-10-24
+
+### Added
+
+- [**breaking**] move panes with cut/paste and move-pane; ignore unknown config keys ([#6](https://github.com/0xKahi/pane-mux/pull/6))
+- *(switch-session)* exclude sessions from recency ranking ([#4](https://github.com/0xKahi/pane-mux/pull/4))
+
 ## [0.1.1](https://github.com/0xKahi/pane-mux/compare/v0.1.0...v0.1.1) - 2026-10-23
 
 ### Added
