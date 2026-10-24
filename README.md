@@ -50,7 +50,26 @@ The configuration directory is the first available of:
 
 Relative overrides are ignored. If no directory can be resolved, built-in defaults are used.
 
-The directory may contain `config.toml`, `keymap.toml`, and `theme.toml`. Each file is optional; a missing directory is fine. Invalid TOML, unknown fields, invalid commands, and invalid values are errors naming the file; pane-mux then exits with code 2.
+The directory may contain `config.toml`, `keymap.toml`, and `theme.toml`. Each file is optional; a missing directory is fine. Unknown keys and sections are ignored. Invalid TOML, wrong types, invalid values, unknown key names in `on`, and unknown commands in `run` are errors naming the file; pane-mux then exits with code 2.
+
+For editor validation with Tombi or taplo, put the matching line at the top of each file:
+
+<!-- config.toml -->
+```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/config.json
+```
+
+<!-- keymap.toml -->
+```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/keymap.json
+```
+
+<!-- theme.toml -->
+```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/theme.json
+```
+
+The schemas flag unknown keys and sections even though pane-mux ignores them. For contributors, `just schemas` regenerates `schemas/`; a test fails when the committed schemas are stale.
 
 See [docs/configuration.md](docs/configuration.md) for picker settings, key bindings, find, theme, and the full defaults.
 
@@ -58,6 +77,7 @@ See [docs/configuration.md](docs/configuration.md) for picker settings, key bind
 
 - [`picker`](#pane-mux-picker---session--window--pane) - Pick a tmux target and print it to stdout
 - [`switch-session`](#pane-mux-switch-session) - Pick a tmux target and switch the current client to it
+- [`move-pane`](#pane-mux-move-pane-target) - Move a pane to a picked destination
 
 For command help, run `pane-mux --help` or `pane-mux picker --help`.
 
@@ -70,6 +90,14 @@ flag, the focused column determines the output. The UI uses stderr (or
 
 Sessions are listed by name. Level flags are mutually exclusive:
 `pane-mux picker --session --pane` prints a usage error without opening the UI.
+
+With the panes column focused, `x` cuts the hovered pane; `x` again clears it, or cuts a different pane instead. Press `p` to paste:
+
+- Sessions column: prompt for a new session name, then its window name.
+- Windows column: prompt for a new window name in the hovered session.
+- Panes column: float the pane in the hovered window using `[floating-pane]` (requires tmux 3.8).
+
+Moves are detached. After a successful paste, the picker stays open, clears the cut buffer and selects the result. See [picker actions](docs/picker-actions.md#cut-and-paste) for restrictions and the last-pane edge case.
 
 #### Options
 
@@ -103,12 +131,35 @@ list refreshes. Windows and panes keep their existing order.
 bind o popup -w 75% -h 75% -x C -y C -E 'pane-mux switch-session'
 ```
 
+### `pane-mux move-pane [TARGET]`
+
+Opens the picker with `[Move]` and the specified pane already cut and locked. `TARGET` accepts tmux pane targets such as `work:1.2` or `%17`; omitting it uses the current pane and requires running inside tmux. An unknown target or no target outside tmux is an error (exit 2).
+
+Use `p` with the same destinations as picker cut/paste above. A successful paste closes the picker and exits 0 without printing a target; `q` without pasting exits 130. Cancelled prompts, same-window paste and failed moves keep the picker open.
+
+#### Examples
+
+Prefer a popup so the pane running the picker is not itself moved:
+
+```tmux
+# ~/.tmux.conf
+bind-key M display-popup -E "pane-mux move-pane"
+```
+
+Reload tmux (`tmux source-file ~/.tmux.conf`), then press `<prefix> M`.
+
+```sh
+pane-mux move-pane work:1.2
+```
+
+Moves are detached, not followed by a client switch. Empty source windows and sessions close normally: moving the last pane of the attached session destroys it, and with `detach-on-destroy on` the client detaches and the popup closes. Floating paste requires tmux 3.8; other paste destinations do not.
+
 ### Exit codes
 
 | Exit code | Meaning |
 | --- | --- |
-| 0 | Picked successfully (and switched for `switch-session`) |
-| 130 | Cancelled without picking |
+| 0 | Picked successfully (and switched for `switch-session`), or moved with `move-pane` |
+| 130 | Cancelled without picking or pasting in `move-pane` |
 | 2 | Error or invalid command-line usage |
 
 

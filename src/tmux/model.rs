@@ -32,6 +32,7 @@ pub struct Window {
     pub index: u32,
     pub name: String,
     pub active: bool,
+    pub zoomed: bool,
     pub panes: Vec<Pane>,
 }
 
@@ -52,6 +53,7 @@ pub struct Pane {
     pub index: u32,
     pub active: bool,
     pub command: String,
+    pub floating: bool,
 }
 
 /// The specificity of a printed tmux target.

@@ -8,9 +8,12 @@ use super::merge;
 
 /// Optional style components; omitted components leave the terminal style unchanged.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct StyleDef {
+    #[cfg_attr(test, schemars(with = "Option<super::schema::Colour>"))]
     pub fg: Option<Color>,
+    #[cfg_attr(test, schemars(with = "Option<super::schema::Colour>"))]
     pub bg: Option<Color>,
     pub bold: Option<bool>,
     pub italic: Option<bool>,
@@ -48,12 +51,14 @@ impl From<&StyleDef> for Style {
 
 /// All appearance settings from theme.toml.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct Theme {
     pub picker: PickerTheme,
     pub preview: PreviewTheme,
     pub icons: Icons,
     pub indicator: IndicatorTheme,
+    pub marker: MarkerTheme,
     pub mode: ModeTheme,
     pub status: StatusTheme,
     pub which: WhichTheme,
@@ -74,7 +79,8 @@ impl Theme {
 
 /// Tree column appearance.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct PickerTheme {
     pub border: StyleDef,
     pub session: StyleDef,
@@ -87,7 +93,8 @@ pub struct PickerTheme {
 
 /// Pane preview frame appearance.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct PreviewTheme {
     pub border: StyleDef,
     pub title: StyleDef,
@@ -95,24 +102,38 @@ pub struct PreviewTheme {
 
 /// Glyph and colour for a tree level. Empty text deliberately hides the icon.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct Icon {
     pub text: String,
+    #[cfg_attr(test, schemars(with = "Option<super::schema::Colour>"))]
     pub fg: Option<Color>,
 }
 
 /// Icons for the three tmux tree levels.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct Icons {
     pub session: Icon,
     pub window: Icon,
     pub pane: Icon,
 }
 
+/// Cut-pane row marker and header badge.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
+pub struct MarkerTheme {
+    pub cut: StyleDef,
+    pub symbol: String,
+    pub badge_cut: StyleDef,
+}
+
 /// Hovered-row caps and the current-item marker.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct IndicatorTheme {
     pub parent: StyleDef,
     pub current: StyleDef,
@@ -123,7 +144,9 @@ pub struct IndicatorTheme {
 
 /// Cap text; either omitted side retains its default glyph.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
+#[serde(default)]
 pub struct IndicatorPadding {
     pub open: String,
     pub close: String,
@@ -140,7 +163,8 @@ impl Default for IndicatorPadding {
 
 /// Marker text with the same optional colour/modifier fields as other styles.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct ActiveIndicator {
     pub text: String,
     #[serde(flatten)]
@@ -149,7 +173,8 @@ pub struct ActiveIndicator {
 
 /// Active layer label in the status line.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct ModeTheme {
     pub normal: StyleDef,
     pub input: StyleDef,
@@ -158,7 +183,8 @@ pub struct ModeTheme {
 
 /// Status line background and informational text.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct StatusTheme {
     pub overall: StyleDef,
     pub label: StyleDef,
@@ -167,7 +193,8 @@ pub struct StatusTheme {
 
 /// Multi-key continuation popup.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct WhichTheme {
     pub border: StyleDef,
     pub key: StyleDef,
@@ -177,7 +204,8 @@ pub struct WhichTheme {
 
 /// Destructive-action confirmation popup.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct ConfirmTheme {
     pub border: StyleDef,
     pub title: StyleDef,
@@ -186,7 +214,8 @@ pub struct ConfirmTheme {
 
 /// Name entry popup.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct InputTheme {
     pub border: StyleDef,
     pub title: StyleDef,
@@ -196,7 +225,8 @@ pub struct InputTheme {
 
 /// Key-binding help popup.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct HelpTheme {
     pub border: StyleDef,
     pub title: StyleDef,
@@ -208,7 +238,8 @@ pub struct HelpTheme {
 
 /// Non-fatal error messages.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct NotifyTheme {
     pub error: StyleDef,
 }
@@ -217,6 +248,24 @@ pub struct NotifyTheme {
 mod tests {
     use super::*;
     use crate::config::preset;
+
+    #[test]
+    fn partial_marker_cut_override_keeps_other_defaults() {
+        let mut expected = Theme::from_toml(&preset::theme(), None).unwrap();
+        assert_eq!(expected.marker.cut.fg, Some(Color::LightRed));
+        assert_eq!(expected.marker.cut.bg, Some(Color::LightRed));
+        expected.marker.cut.fg = Some(Color::Yellow);
+        expected.marker.cut.bg = Some(Color::Yellow);
+        let actual = Theme::from_toml(
+            &preset::theme(),
+            Some("[marker]\ncut = { fg = 'yellow', bg = 'yellow' }"),
+        )
+        .unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(actual.marker.symbol, "│");
+        assert_eq!(actual.marker.badge_cut.fg, Some(Color::White));
+        assert_eq!(actual.marker.badge_cut.bg, Some(Color::Red));
+    }
 
     #[test]
     fn partial_preview_override_changes_only_border_colour() {
@@ -296,9 +345,11 @@ mod tests {
     }
 
     #[test]
-    fn unknown_theme_key_errors() {
-        let error = Theme::from_toml(&preset::theme(), Some("[input]\nunknown = {} ")).unwrap_err();
-        assert!(format!("{error:#}").contains("unknown"));
+    fn unknown_theme_keys_are_ignored() {
+        let mut expected = Theme::from_toml(&preset::theme(), None).unwrap();
+        expected.picker.border.fg = Some(Color::Red);
+        let actual = Theme::from_toml(&preset::theme(), Some("[future]\nenabled = true\n[picker]\nsparkle = { fg = 'red' }\nborder = { fg = 'red', unknown = true }\n[indicator.active]\nunknown = true")).unwrap();
+        assert_eq!(actual, expected);
     }
 
     #[test]

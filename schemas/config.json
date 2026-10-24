@@ -1,0 +1,99 @@
+{
+  "$id": "https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "FloatingPaneConfig": {
+      "additionalProperties": false,
+      "description": "Floating pane dimensions as percentages of the target window.",
+      "properties": {
+        "height": {
+          "format": "uint8",
+          "maximum": 100.0,
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "position": {
+          "$ref": "#/definitions/FloatingPosition"
+        },
+        "width": {
+          "format": "uint8",
+          "maximum": 100.0,
+          "minimum": 1.0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "FloatingPosition": {
+      "description": "Named positions accepted by tmux's move-pane -P option.",
+      "enum": [
+        "top-left",
+        "top-centre",
+        "top-right",
+        "centre-left",
+        "centre",
+        "centre-right",
+        "bottom-left",
+        "bottom-centre",
+        "bottom-right",
+        "top-left-centre",
+        "top-right-centre",
+        "bottom-left-centre",
+        "bottom-right-centre"
+      ],
+      "type": "string"
+    },
+    "PickerConfig": {
+      "additionalProperties": false,
+      "description": "Preview sizing and placement.",
+      "properties": {
+        "preview_position": {
+          "$ref": "#/definitions/PreviewPosition"
+        },
+        "preview_ratio": {
+          "format": "uint16",
+          "maximum": 99.0,
+          "minimum": 1.0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "PreviewPosition": {
+      "description": "Which side of the columns contains the preview.",
+      "enum": [
+        "top",
+        "bottom"
+      ],
+      "type": "string"
+    },
+    "SwitchSessionConfig": {
+      "additionalProperties": false,
+      "description": "Session recency ranking settings for switch-session.",
+      "properties": {
+        "exclude_from_recency": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "description": "Application settings from config.toml.",
+  "properties": {
+    "floating-pane": {
+      "$ref": "#/definitions/FloatingPaneConfig"
+    },
+    "picker": {
+      "$ref": "#/definitions/PickerConfig"
+    },
+    "switch-session": {
+      "$ref": "#/definitions/SwitchSessionConfig"
+    }
+  },
+  "title": "Config",
+  "type": "object"
+}

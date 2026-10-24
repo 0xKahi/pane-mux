@@ -13,7 +13,10 @@ use super::{
     which::Which,
 };
 use crate::{
-    config::keymap::{Key, Keymap},
+    config::{
+        FloatingPaneConfig, FloatingPosition,
+        keymap::{Key, Keymap},
+    },
     tmux::{Current, Level, Pane, Session, Target, Tmux, Tree, Window},
 };
 
@@ -22,6 +25,7 @@ use crate::{
 pub enum Exit {
     Pick(String),
     Cancel,
+    Moved,
 }
 
 /// Raw ANSI preview text and its top-line offset.
@@ -36,6 +40,8 @@ pub struct Preview {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     pub options: PickerOptions,
+    pub cut: Option<String>,
+    pub floating_pane: FloatingPaneConfig,
     pub tree: Tree,
     pub current: Option<Current>,
     pub suppressed_pane: Option<String>,
@@ -53,7 +59,7 @@ pub struct State {
 }
 
 impl State {
-    /// Initialize cursor ids, selecting active children of the first session.
+    /// Initialize the session cursor and select its active children.
     pub fn new(
         options: PickerOptions,
         tree: Tree,
@@ -61,6 +67,12 @@ impl State {
         suppressed_pane: Option<String>,
     ) -> Self {
         let mut state = Self {
+            cut: options.cut.clone(),
+            floating_pane: FloatingPaneConfig {
+                width: 50,
+                height: 50,
+                position: FloatingPosition::Centre,
+            },
             options,
             tree,
             current,
@@ -83,10 +95,21 @@ impl State {
         state
     }
 
-    /// Under recency order, open on the first non-current session; otherwise
-    /// (or when none exists) open on the first session.
+    /// An explicit startup pane selects its session, falling back to the top.
+    /// Otherwise preserve normal name/recency startup selection.
     fn initial_session(&self) -> Option<String> {
         let sessions = &self.tree.sessions;
+        if let Some(pane_id) = &self.options.initial_pane {
+            return sessions
+                .iter()
+                .find(|s| {
+                    s.windows
+                        .iter()
+                        .any(|w| w.panes.iter().any(|p| &p.id == pane_id))
+                })
+                .or_else(|| sessions.first())
+                .map(|s| s.id.clone());
+        }
         let previous = match (self.options.order, &self.current) {
             (SessionOrder::Recent, Some(current)) => {
                 sessions.iter().find(|s| s.id != current.session_id)
@@ -286,6 +309,10 @@ impl State {
                 .unwrap_or(0)
         });
         self.tree = tmux.tree()?;
+        if self.cut.is_some() && self.cut_target().is_none() {
+            self.cut = None;
+            self.message = Some("Cut pane no longer exists".into());
+        }
         self.sort_sessions();
         for (level, position) in levels.into_iter().zip(positions) {
             let ids = self.ids(level);
@@ -374,6 +401,9 @@ impl State {
     pub fn apply(&mut self, action: &Action, tmux: &dyn Tmux) -> Option<Exit> {
         match action {
             Action::Quit => return Some(Exit::Cancel),
+            Action::Pick if self.options.cut_locked => {
+                self.message = Some("Paste the cut pane to complete the move".into());
+            }
             Action::Pick => {
                 return self
                     .hovered()
@@ -445,6 +475,11 @@ impl State {
                     self.find_jump(finder.clone(), *previous, false, tmux);
                 }
             }
+            Action::Cut if self.popup.is_none() => self.cut_pane(),
+            Action::Paste if self.popup.is_none() => match self.paste(tmux) {
+                Ok(exit) => return exit,
+                Err(error) => self.message = Some(error.to_string()),
+            },
             Action::Create => self.open_input(false),
             Action::Rename => self.open_input(true),
             Action::Remove => self.open_confirm(),
@@ -457,9 +492,11 @@ impl State {
             Action::Close { submit } => {
                 if let Some(popup) = self.popup.take()
                     && *submit
-                    && let Err(error) = self.submit(popup, tmux)
                 {
-                    self.message = Some(error.to_string());
+                    match self.submit(popup, tmux) {
+                        Ok(exit) => return exit,
+                        Err(error) => self.message = Some(error.to_string()),
+                    }
                 }
             }
             Action::Backspace | Action::KillWord | Action::KillBol => {
@@ -482,7 +519,7 @@ impl State {
                     self.input_changed(tmux);
                 }
             }
-            Action::Focus(_) => {}
+            Action::Focus(_) | Action::Cut | Action::Paste => {}
         }
         None
     }
@@ -585,6 +622,131 @@ impl State {
         });
     }
 
+    /// The cut target is derived from stable ids every frame, not cached indexes.
+    pub fn cut_target(&self) -> Option<Target> {
+        let id = self.cut.as_deref()?;
+        self.tree.sessions.iter().find_map(|session| {
+            session.windows.iter().find_map(|window| {
+                window
+                    .panes
+                    .iter()
+                    .find(|pane| pane.id == id)
+                    .map(|pane| Target {
+                        session: session.name.clone(),
+                        window_index: window.index,
+                        pane_index: pane.index,
+                    })
+            })
+        })
+    }
+
+    fn cut_pane(&mut self) {
+        let refusal = if self.options.cut_locked {
+            Some("Cut is locked in move-pane mode")
+        } else if self.focus != Level::Pane || self.hovered_pane().is_none() {
+            Some("Only panes can be cut")
+        } else {
+            None
+        };
+        if let Some(message) = refusal {
+            self.message = Some(message.into());
+            return;
+        }
+        let id = self.pane.clone();
+        self.cut = if self.cut == id { None } else { id };
+        self.message = None;
+    }
+
+    fn require_pane(&mut self, pane_id: &str, tmux: &dyn Tmux) -> Result<()> {
+        self.refresh(tmux)?;
+        anyhow::ensure!(
+            self.tree
+                .sessions
+                .iter()
+                .flat_map(|s| &s.windows)
+                .flat_map(|w| &w.panes)
+                .any(|p| p.id == pane_id),
+            "Cut pane no longer exists"
+        );
+        Ok(())
+    }
+
+    fn paste(&mut self, tmux: &dyn Tmux) -> Result<Option<Exit>> {
+        let Some(pane_id) = self.cut.clone() else {
+            self.message = Some("Nothing is cut".into());
+            return Ok(None);
+        };
+        self.require_pane(&pane_id, tmux)?;
+        let purpose = match self.focus {
+            Level::Session => InputPurpose::PasteSession { pane_id },
+            Level::Window => {
+                let Some(session_id) = self.session.clone() else {
+                    return Ok(None);
+                };
+                InputPurpose::PasteWindow {
+                    pane_id,
+                    session_id,
+                }
+            }
+            Level::Pane => {
+                let Some(window) = self.hovered_window() else {
+                    return Ok(None);
+                };
+                if window.panes.iter().any(|p| p.id == pane_id) {
+                    return Ok(None);
+                }
+                anyhow::ensure!(!window.zoomed, "Target window is zoomed");
+                tmux.float_pane_in_window(&pane_id, &window.id, &self.floating_pane)?;
+                return self.pasted(tmux, Level::Pane, pane_id);
+            }
+        };
+        self.message = None;
+        self.popup = Some(Popup::Input {
+            title: if self.focus == Level::Session {
+                "Session name"
+            } else {
+                "Window name"
+            }
+            .into(),
+            value: String::new(),
+            purpose,
+        });
+        Ok(None)
+    }
+
+    fn pasted(&mut self, tmux: &dyn Tmux, level: Level, id: String) -> Result<Option<Exit>> {
+        self.cut = None;
+        self.message = None;
+        if self.options.cut_locked {
+            return Ok(Some(Exit::Moved));
+        }
+        self.refresh(tmux)?;
+        // Select ancestors as well: refresh may have clamped a deleted source.
+        let location = self.tree.sessions.iter().find_map(|s| {
+            if level == Level::Session && s.id == id {
+                return Some((s.id.clone(), None));
+            }
+            s.windows
+                .iter()
+                .find(|w| {
+                    (level == Level::Window && w.id == id)
+                        || (level == Level::Pane && w.panes.iter().any(|p| p.id == id))
+                })
+                .map(|w| (s.id.clone(), Some(w.id.clone())))
+        });
+        if let Some((session, window)) = location {
+            self.select(Level::Session, Some(session));
+            if let Some(window) = window {
+                self.select(Level::Window, Some(window));
+            }
+            if level == Level::Pane {
+                self.select(Level::Pane, Some(id));
+            }
+        }
+        self.preview_or_message(tmux);
+        Ok(None)
+    }
+
     fn open_confirm(&mut self) {
         let Some(id) = self.hovered_id().map(String::from) else {
             return;
@@ -606,7 +768,7 @@ impl State {
         });
     }
 
-    fn submit(&mut self, popup: Popup, tmux: &dyn Tmux) -> Result<()> {
+    fn submit(&mut self, popup: Popup, tmux: &dyn Tmux) -> Result<Option<Exit>> {
         let mut created = None;
         match popup {
             Popup::Input { value, purpose, .. } => {
@@ -616,7 +778,39 @@ impl State {
                     Some(value.as_str())
                 };
                 match purpose {
-                    InputPurpose::Find { .. } => return Ok(()),
+                    InputPurpose::Find { .. } => return Ok(None),
+                    InputPurpose::PasteSession { pane_id } => {
+                        self.require_pane(&pane_id, tmux)?;
+                        self.popup = Some(Popup::Input {
+                            title: "Window name".into(),
+                            value: String::new(),
+                            purpose: InputPurpose::PasteSessionWindow {
+                                pane_id,
+                                session_name: value,
+                            },
+                        });
+                        return Ok(None);
+                    }
+                    InputPurpose::PasteSessionWindow {
+                        pane_id,
+                        session_name,
+                    } => {
+                        self.require_pane(&pane_id, tmux)?;
+                        let (session, _) = tmux.move_pane_to_new_session(
+                            &pane_id,
+                            (!session_name.is_empty()).then_some(session_name.as_str()),
+                            name,
+                        )?;
+                        return self.pasted(tmux, Level::Session, session);
+                    }
+                    InputPurpose::PasteWindow {
+                        pane_id,
+                        session_id,
+                    } => {
+                        self.require_pane(&pane_id, tmux)?;
+                        let window = tmux.move_pane_to_new_window(&pane_id, &session_id, name)?;
+                        return self.pasted(tmux, Level::Window, window);
+                    }
                     InputPurpose::CreateSession => {
                         created = Some((Level::Session, tmux.new_session(name)?))
                     }
@@ -636,14 +830,14 @@ impl State {
                     Level::Pane => tmux.kill_pane(&id)?,
                 }
             }
-            Popup::Help { .. } => return Ok(()),
+            Popup::Help { .. } => return Ok(None),
         }
         self.refresh(tmux)?;
         if let Some((level, id)) = created {
             self.select(level, Some(id));
             self.update_preview(tmux)?;
         }
-        Ok(())
+        Ok(None)
     }
 }
 
@@ -662,5 +856,7 @@ fn moved(index: usize, len: usize, step: Step, height: u16) -> usize {
         .min(len.saturating_sub(1))
 }
 
+#[cfg(test)]
+mod moving_tests;
 #[cfg(test)]
 mod tests;

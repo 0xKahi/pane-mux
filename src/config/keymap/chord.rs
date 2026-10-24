@@ -7,11 +7,14 @@ use crate::picker::action::Action;
 
 /// A configured key sequence and the actions it dispatches in order.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
 pub struct Chord {
     #[serde(deserialize_with = "deserialize_on")]
+    #[cfg_attr(test, schemars(with = "crate::config::schema::On"))]
     pub on: Vec<Key>,
     #[serde(deserialize_with = "deserialize_run")]
+    #[cfg_attr(test, schemars(with = "crate::config::schema::Run"))]
     pub run: Vec<Action>,
     pub desc: Option<String>,
 }
@@ -74,8 +77,10 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unknown_fields_and_empty_sequences() {
-        assert!(toml::from_str::<Chord>("on = 'x'\nrun = 'quit'\ntypo = true").is_err());
+    fn ignores_unknown_fields_but_rejects_empty_sequences() {
+        let chord: Chord = toml::from_str("on = 'q'\nrun = 'quit'\nnote = 'x'").unwrap();
+        assert_eq!(chord.on, vec!["q".parse::<Key>().unwrap()]);
+        assert_eq!(chord.run, vec![Action::Quit]);
         assert!(toml::from_str::<Chord>("on = []\nrun = 'quit'").is_err());
     }
 

@@ -15,8 +15,10 @@ pub struct Keymap {
 }
 
 #[derive(Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct KeymapFile {
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
+#[serde(default)]
+pub(crate) struct KeymapFile {
     picker: Layer,
     input: Layer,
     confirm: Layer,
@@ -24,7 +26,9 @@ struct KeymapFile {
 }
 
 #[derive(Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[cfg_attr(test, schemars(deny_unknown_fields))]
+#[serde(default)]
 struct Layer {
     keymap: Option<Vec<Chord>>,
     prepend_keymap: Option<Vec<Chord>>,
@@ -182,8 +186,9 @@ mod tests {
     }
 
     #[test]
-    fn unknown_layers_and_fields_are_errors() {
-        assert!(Keymap::from_toml("", Some("[typo]\nkeymap = []")).is_err());
-        assert!(Keymap::from_toml("", Some("[picker]\ntypo = []")).is_err());
+    fn unknown_layers_and_fields_are_ignored() {
+        let keymap = Keymap::from_toml("", Some("[future]\nkeymap = []\n[picker]\ntypo = []\nkeymap = [{ on = 'q', run = 'quit', note = 'x' }]")).unwrap();
+        assert_eq!(keymap.picker.len(), 1);
+        assert_eq!(keymap.picker[0].run, vec![Action::Quit]);
     }
 }

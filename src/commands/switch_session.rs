@@ -3,7 +3,7 @@
 use super::Outcome;
 use crate::{
     config::Loaded,
-    picker::{self, PickerOptions, SessionOrder},
+    picker::{self, Exit, PickerOptions, SessionOrder},
     tmux::Tmux,
 };
 use anyhow::{Result, ensure};
@@ -19,12 +19,14 @@ pub fn run(tmux: &dyn Tmux, loaded: &Loaded) -> Result<Outcome> {
         header: "[Switch]".into(),
         order: SessionOrder::Recent,
         recency_exclude: loaded.config.switch_session.exclude_from_recency.clone(),
+        ..PickerOptions::default()
     };
     match picker::run(options, tmux, loaded)? {
-        Some(target) => {
+        Exit::Pick(target) => {
             tmux.switch_client(&target)?;
             Ok(Outcome::Done)
         }
-        None => Ok(Outcome::Cancelled),
+        Exit::Cancel => Ok(Outcome::Cancelled),
+        Exit::Moved => Ok(Outcome::Done),
     }
 }

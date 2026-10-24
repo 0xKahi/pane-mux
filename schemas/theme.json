@@ -1,0 +1,421 @@
+{
+  "$id": "https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/theme.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "ActiveIndicator": {
+      "additionalProperties": false,
+      "description": "Marker text with the same optional colour/modifier fields as other styles.",
+      "properties": {
+        "bg": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Colour"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bold": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "dim": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "fg": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Colour"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "italic": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reversed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "underline": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Colour": {
+      "description": "A named terminal colour, reset, or #rrggbb.",
+      "pattern": "^(reset|black|red|green|yellow|blue|magenta|cyan|gray|darkgray|lightred|lightgreen|lightyellow|lightblue|lightmagenta|lightcyan|white|#[0-9a-fA-F]{6})$",
+      "type": "string"
+    },
+    "ConfirmTheme": {
+      "additionalProperties": false,
+      "description": "Destructive-action confirmation popup.",
+      "properties": {
+        "body": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "border": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "title": {
+          "$ref": "#/definitions/StyleDef"
+        }
+      },
+      "type": "object"
+    },
+    "HelpTheme": {
+      "additionalProperties": false,
+      "description": "Key-binding help popup.",
+      "properties": {
+        "border": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "desc": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "hovered": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "on": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "run": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "title": {
+          "$ref": "#/definitions/StyleDef"
+        }
+      },
+      "type": "object"
+    },
+    "Icon": {
+      "additionalProperties": false,
+      "description": "Glyph and colour for a tree level. Empty text deliberately hides the icon.",
+      "properties": {
+        "fg": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Colour"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Icons": {
+      "additionalProperties": false,
+      "description": "Icons for the three tmux tree levels.",
+      "properties": {
+        "pane": {
+          "$ref": "#/definitions/Icon"
+        },
+        "session": {
+          "$ref": "#/definitions/Icon"
+        },
+        "window": {
+          "$ref": "#/definitions/Icon"
+        }
+      },
+      "type": "object"
+    },
+    "IndicatorPadding": {
+      "additionalProperties": false,
+      "description": "Cap text; either omitted side retains its default glyph.",
+      "properties": {
+        "close": {
+          "default": "",
+          "type": "string"
+        },
+        "open": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "IndicatorTheme": {
+      "additionalProperties": false,
+      "description": "Hovered-row caps and the current-item marker.",
+      "properties": {
+        "active": {
+          "$ref": "#/definitions/ActiveIndicator"
+        },
+        "current": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "padding": {
+          "$ref": "#/definitions/IndicatorPadding"
+        },
+        "parent": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "preview": {
+          "$ref": "#/definitions/StyleDef"
+        }
+      },
+      "type": "object"
+    },
+    "InputTheme": {
+      "additionalProperties": false,
+      "description": "Name entry popup.",
+      "properties": {
+        "border": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "selected": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "title": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "value": {
+          "$ref": "#/definitions/StyleDef"
+        }
+      },
+      "type": "object"
+    },
+    "MarkerTheme": {
+      "additionalProperties": false,
+      "description": "Cut-pane row marker and header badge.",
+      "properties": {
+        "badge_cut": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "cut": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "symbol": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ModeTheme": {
+      "additionalProperties": false,
+      "description": "Active layer label in the status line.",
+      "properties": {
+        "confirm": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "input": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "normal": {
+          "$ref": "#/definitions/StyleDef"
+        }
+      },
+      "type": "object"
+    },
+    "NotifyTheme": {
+      "additionalProperties": false,
+      "description": "Non-fatal error messages.",
+      "properties": {
+        "error": {
+          "$ref": "#/definitions/StyleDef"
+        }
+      },
+      "type": "object"
+    },
+    "PickerTheme": {
+      "additionalProperties": false,
+      "description": "Tree column appearance.",
+      "properties": {
+        "border": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "find_keyword": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "find_position": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "header": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "pane": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "session": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "window": {
+          "$ref": "#/definitions/StyleDef"
+        }
+      },
+      "type": "object"
+    },
+    "PreviewTheme": {
+      "additionalProperties": false,
+      "description": "Pane preview frame appearance.",
+      "properties": {
+        "border": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "title": {
+          "$ref": "#/definitions/StyleDef"
+        }
+      },
+      "type": "object"
+    },
+    "StatusTheme": {
+      "additionalProperties": false,
+      "description": "Status line background and informational text.",
+      "properties": {
+        "label": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "message": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "overall": {
+          "$ref": "#/definitions/StyleDef"
+        }
+      },
+      "type": "object"
+    },
+    "StyleDef": {
+      "additionalProperties": false,
+      "description": "Optional style components; omitted components leave the terminal style unchanged.",
+      "properties": {
+        "bg": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Colour"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bold": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "dim": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "fg": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Colour"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "italic": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reversed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "underline": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "WhichTheme": {
+      "additionalProperties": false,
+      "description": "Multi-key continuation popup.",
+      "properties": {
+        "border": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "desc": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "key": {
+          "$ref": "#/definitions/StyleDef"
+        },
+        "separator": {
+          "$ref": "#/definitions/StyleDef"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "description": "All appearance settings from theme.toml.",
+  "properties": {
+    "confirm": {
+      "$ref": "#/definitions/ConfirmTheme"
+    },
+    "help": {
+      "$ref": "#/definitions/HelpTheme"
+    },
+    "icons": {
+      "$ref": "#/definitions/Icons"
+    },
+    "indicator": {
+      "$ref": "#/definitions/IndicatorTheme"
+    },
+    "input": {
+      "$ref": "#/definitions/InputTheme"
+    },
+    "marker": {
+      "$ref": "#/definitions/MarkerTheme"
+    },
+    "mode": {
+      "$ref": "#/definitions/ModeTheme"
+    },
+    "notify": {
+      "$ref": "#/definitions/NotifyTheme"
+    },
+    "picker": {
+      "$ref": "#/definitions/PickerTheme"
+    },
+    "preview": {
+      "$ref": "#/definitions/PreviewTheme"
+    },
+    "status": {
+      "$ref": "#/definitions/StatusTheme"
+    },
+    "which": {
+      "$ref": "#/definitions/WhichTheme"
+    }
+  },
+  "title": "Theme",
+  "type": "object"
+}

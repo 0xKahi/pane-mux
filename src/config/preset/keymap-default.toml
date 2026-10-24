@@ -1,3 +1,6 @@
+# Editor validation (Tombi, taplo): keep the #:schema line below.
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/keymap.json
+
 [picker]
 keymap = [
     { on = "k", run = "arrow prev", desc = "Previous item" },
@@ -20,6 +23,8 @@ keymap = [
     { on = ["<Space>", "/"], run = "find --smart", desc = "Find by name" },
     { on = "n", run = "find_arrow", desc = "Next match" },
     { on = "N", run = "find_arrow --previous", desc = "Previous match" },
+    { on = "x", run = "cut", desc = "Cut hovered pane" },
+    { on = "p", run = "paste", desc = "Paste cut pane" },
     { on = "a", run = "create", desc = "Create session or window" },
     { on = "r", run = "rename", desc = "Rename session or window" },
     { on = ["d", "d"], run = "remove", desc = "Delete hovered item" },

@@ -94,6 +94,20 @@ fn switch_session_requires_tmux() {
 }
 
 #[test]
+fn move_pane_requires_target_outside_tmux() {
+    let dir = TempDir::new();
+    let output = run(dir.command().arg("move-pane"));
+    assert!(assert_error(&output).contains("requires a target outside tmux"));
+}
+
+#[test]
+fn move_pane_unknown_target_fails_before_terminal_setup() {
+    let dir = TempDir::new();
+    let output = run(dir.command().args(["move-pane", "nosuch:9.9"]));
+    assert!(assert_error(&output).contains("pane not found: nosuch:9.9"));
+}
+
+#[test]
 fn invalid_keymap_from_config_home_names_file() {
     let dir = TempDir::new();
     std::fs::write(dir.0.join("keymap.toml"), "[picker\n").unwrap();
@@ -104,11 +118,54 @@ fn invalid_keymap_from_config_home_names_file() {
 }
 
 #[test]
-fn help_lists_both_commands() {
+fn invalid_known_values_exit_two_and_name_file_and_setting() {
+    for (file, text, setting) in [
+        (
+            "config.toml",
+            "[switch-session]\nexclude_from_recency = '_popup'",
+            "exclude_from_recency",
+        ),
+        ("theme.toml", "[picker]\nborder = 'gray'", "border"),
+        (
+            "config.toml",
+            "[floating-pane]\nposition = 'middle'",
+            "position",
+        ),
+        ("config.toml", "[floating-pane]\nwidth = 0", "width"),
+        (
+            "config.toml",
+            "[picker]\npreview_ratio = 150",
+            "preview_ratio",
+        ),
+        (
+            "keymap.toml",
+            "[picker]\nkeymap = [{ on = '<Foo>', run = 'quit' }]",
+            "<Foo>",
+        ),
+        (
+            "keymap.toml",
+            "[picker]\nkeymap = [{ on = 'q', run = 'pste' }]",
+            "pste",
+        ),
+    ] {
+        let dir = TempDir::new();
+        std::fs::write(dir.0.join(file), text).unwrap();
+        let stderr = assert_error(&run(dir.command().arg("picker")));
+        assert!(
+            stderr.contains(&dir.0.join(file).display().to_string()),
+            "{stderr}"
+        );
+        assert!(stderr.contains(setting), "{stderr}");
+    }
+}
+
+#[test]
+fn help_lists_all_commands() {
     let dir = TempDir::new();
     let output = run(dir.command().arg("--help"));
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("picker"));
     assert!(stdout.contains("switch-session"));
+    assert!(stdout.contains("move-pane"));
 }

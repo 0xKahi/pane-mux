@@ -17,4 +17,8 @@ pub struct PickerOptions {
     pub header: String,
     pub order: SessionOrder,
     pub recency_exclude: Vec<String>,
+    pub cut: Option<String>,
+    pub cut_locked: bool,
+    /// Start on the session containing this pane, without changing column focus.
+    pub initial_pane: Option<String>,
 }

@@ -1,3 +1,6 @@
+# Editor validation (Tombi, taplo): keep the #:schema line below.
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/theme.json
+
 # Adapted from the user's yazi theme: reversed indicators, gray borders,
 # green/blue mode labels, and yellow/red input and confirmation frames.
 [picker]
@@ -16,6 +19,11 @@ preview = { underline = true }
 # Exact Powerline caps from the user's yazi theme, preserved as Unicode escapes.
 padding = { open = "\uE0B6", close = "\uE0B4" }
 active = { text = "*", fg = "magenta" }
+
+[marker]
+symbol = "│"
+cut = { fg = "lightred", bg = "lightred" }
+badge_cut = { fg = "white", bg = "red" }
 
 [preview]
 border = { fg = "gray" }

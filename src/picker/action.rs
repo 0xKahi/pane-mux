@@ -20,6 +20,10 @@ pub enum Action {
     Pick,
     /// Open the name prompt to create a session/window.
     Create,
+    /// Mark the hovered pane for moving.
+    Cut,
+    /// Move the cut pane to the focused destination.
+    Paste,
     /// Open the name prompt to rename the hovered session/window.
     Rename,
     /// Ask to delete the hovered item.
