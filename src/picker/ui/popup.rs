@@ -23,6 +23,10 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &State, theme: &Theme
                     } => "Find next:",
                     InputPurpose::Find { previous: true, .. } => "Find previous:",
                     InputPurpose::CreateSession => "New session name:",
+                    InputPurpose::PasteSession { .. } => "Paste into new session:",
+                    InputPurpose::PasteSessionWindow { .. } | InputPurpose::PasteWindow { .. } => {
+                        "Paste into new window:"
+                    }
                     InputPurpose::CreateWindow { .. } => "New window name:",
                     InputPurpose::RenameSession { .. } => "Rename session:",
                     InputPurpose::RenameWindow { .. } => "Rename window:",

@@ -12,18 +12,21 @@ fn fixture() -> FakeTmux {
         index: 1,
         name: "editor".into(),
         active: true,
+        zoomed: false,
         panes: vec![
             Pane {
                 id: "%10".into(),
                 index: 0,
                 active: true,
                 command: "nvim".into(),
+                floating: false,
             },
             Pane {
                 id: "%11".into(),
                 index: 2,
                 active: false,
                 command: "sh".into(),
+                floating: false,
             },
         ],
     });
@@ -32,11 +35,13 @@ fn fixture() -> FakeTmux {
         index: 2,
         name: "logs".into(),
         active: false,
+        zoomed: false,
         panes: vec![Pane {
             id: "%20".into(),
             index: 0,
             active: true,
             command: "tail".into(),
+            floating: false,
         }],
     });
     FakeTmux::new(tree)
@@ -252,6 +257,7 @@ fn finder_follows_focus_after_h_and_l() {
         index: 1,
         name: "blog".into(),
         active: false,
+        zoomed: false,
         panes: vec![],
     });
     let fake = FakeTmux::new(tree);

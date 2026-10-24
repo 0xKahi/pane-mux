@@ -45,6 +45,21 @@ pub fn render(frame: &mut Frame, state: &State, theme: &Theme, config: &PickerCo
         Paragraph::new(state.options.header.clone()).style(Style::from(&theme.picker.header)),
         areas.header,
     );
+    if let Some(target) = state.cut_target() {
+        let badge = format!(" cut {} ", target.at(Level::Pane));
+        let width = Span::raw(&badge)
+            .width()
+            .min(usize::from(areas.header.width)) as u16;
+        frame.render_widget(
+            Paragraph::new(badge).style(Style::from(&theme.marker.badge_cut)),
+            Rect::new(
+                areas.header.right() - width,
+                areas.header.y,
+                width,
+                areas.header.height,
+            ),
+        );
+    }
     columns::render(frame, areas.columns, state, theme);
     preview::render(frame, areas.preview, state, theme);
     status(frame, areas.status, state, theme);

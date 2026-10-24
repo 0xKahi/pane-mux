@@ -22,18 +22,21 @@ fn fixture() -> (State, FakeTmux, Theme, PickerConfig, Keymap) {
             index: 1,
             name: "editor".into(),
             active: true,
+            zoomed: false,
             panes: vec![
                 Pane {
                     id: "%12".into(),
                     index: 0,
                     active: true,
                     command: "nvim".into(),
+                    floating: false,
                 },
                 Pane {
                     id: "%13".into(),
                     index: 2,
                     active: false,
                     command: "zsh".into(),
+                    floating: false,
                 },
             ],
         },
@@ -42,6 +45,7 @@ fn fixture() -> (State, FakeTmux, Theme, PickerConfig, Keymap) {
             index: 2,
             name: "server logs".into(),
             active: false,
+            zoomed: false,
             panes: Vec::new(),
         },
     ];
@@ -86,6 +90,82 @@ fn draw(state: &mut State, theme: &Theme, config: &PickerConfig) -> Terminal<Tes
 
 fn press(state: &mut State, fake: &FakeTmux, keymap: &Keymap, key: &str) {
     state.handle_key(key.parse().unwrap(), keymap, fake);
+}
+
+#[test]
+fn cut_marker_independent_of_hover_and_current() {
+    for (name, pane, cut_id, current) in [
+        ("cut_unhovered", "%12", "%13", false),
+        ("cut_hovered", "%13", "%13", false),
+        ("cut_hovered_current", "%12", "%12", true),
+    ] {
+        let (mut state, _, theme, config, _) = fixture();
+        state.focus = Level::Pane;
+        state.pane = Some(pane.into());
+        state.cut = Some(cut_id.into());
+        let terminal = draw(&mut state, &theme, &config);
+        insta::assert_snapshot!(name, terminal.backend());
+        let area = layout::areas(Rect::new(0, 0, 80, 24), &config).columns[2];
+        let y = area.y + if cut_id == "%12" { 1 } else { 2 };
+        let buffer = terminal.backend().buffer();
+        let marker = &buffer[(area.x, y)];
+        assert_eq!(marker.symbol(), "│");
+        assert_eq!(marker.fg, Color::LightRed);
+        assert_eq!(marker.bg, Color::LightRed);
+        assert_eq!(
+            buffer[(area.x + 3, y)].symbol(),
+            if current { "*" } else { " " }
+        );
+        if pane == cut_id {
+            assert!(
+                buffer[(area.x + 7, y)]
+                    .modifier
+                    .contains(Modifier::REVERSED)
+            );
+        }
+    }
+}
+
+#[test]
+fn cut_badge_right_aligned_and_custom_marker_style() {
+    let (mut state, _, mut theme, config, _) = fixture();
+    state.cut = Some("%13".into());
+    theme.marker.symbol = "!".into();
+    theme.marker.cut.fg = Some(Color::Yellow);
+    theme.marker.cut.bg = Some(Color::Yellow);
+    let terminal = draw(&mut state, &theme, &config);
+    insta::assert_snapshot!(terminal.backend());
+    let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
+    let buffer = terminal.backend().buffer();
+    let badge = " cut work:1.2 ";
+    let x = areas.header.right() - badge.len() as u16;
+    for (offset, symbol) in badge.chars().enumerate() {
+        let cell = &buffer[(x + offset as u16, areas.header.y)];
+        assert_eq!(cell.symbol(), symbol.to_string());
+        assert_eq!(cell.fg, Color::White);
+        assert_eq!(cell.bg, Color::Red);
+    }
+    let marker = &buffer[(areas.columns[2].x, areas.columns[2].y + 2)];
+    assert_eq!(marker.symbol(), "!");
+    assert_eq!(marker.fg, Color::Yellow);
+    assert_eq!(marker.bg, Color::Yellow);
+}
+
+#[test]
+fn cut_badge_uses_live_target_and_tiny_terminals_are_safe() {
+    let (mut state, _, theme, config, _) = fixture();
+    state.cut = Some("%13".into());
+    state.tree.sessions[0].name = "renamed".into();
+    state.tree.sessions[0].windows[0].index = 8;
+    state.tree.sessions[0].windows[0].panes[1].index = 9;
+    let terminal = draw(&mut state, &theme, &config);
+    assert!(terminal.backend().to_string().contains("cut renamed:8.9"));
+    for width in 0..15 {
+        let mut terminal = Terminal::new(TestBackend::new(width, 3)).unwrap();
+        terminal
+            .draw(|frame| render(frame, &state, &theme, &config))
+            .unwrap();
+    }
 }
 
 #[test]

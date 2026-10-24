@@ -3,7 +3,7 @@
 use super::Outcome;
 use crate::{
     config::Loaded,
-    picker::{self, PickerOptions, SessionOrder},
+    picker::{self, Exit, PickerOptions, SessionOrder},
     tmux::{Level, Tmux},
 };
 use anyhow::Result;
@@ -21,15 +21,16 @@ pub fn run(level: Option<Level>, tmux: &dyn Tmux, loaded: &Loaded) -> Result<Out
             level,
             header: header.into(),
             order: SessionOrder::Name,
-            recency_exclude: Vec::new(),
+            ..PickerOptions::default()
         },
         tmux,
         loaded,
     )? {
-        Some(target) => {
+        Exit::Pick(target) => {
             println!("{target}");
             Ok(Outcome::Done)
         }
-        None => Ok(Outcome::Cancelled),
+        Exit::Cancel => Ok(Outcome::Cancelled),
+        Exit::Moved => Ok(Outcome::Done),
     }
 }

@@ -77,6 +77,20 @@ fn invalid_ratio_names_config_file_and_setting() {
 }
 
 #[test]
+fn invalid_floating_pane_names_config_file_and_setting() {
+    for (setting, value) in [("position", "'middle'"), ("width", "0")] {
+        let dir = TempDir::new();
+        dir.write(
+            "config.toml",
+            &format!("[floating-pane]\n{setting} = {value}"),
+        );
+        let message = format!("{:#}", config::load_from(Some(&dir.0)).unwrap_err());
+        assert!(message.contains(&dir.0.join("config.toml").display().to_string()));
+        assert!(message.contains(setting), "{message}");
+    }
+}
+
+#[test]
 fn invalid_switch_session_exclusions_name_config_file_and_setting() {
     let dir = TempDir::new();
     dir.write(
@@ -99,6 +113,28 @@ fn unknown_key_names_file_and_key() {
     let message = format!("{:#}", config::load_from(Some(&dir.0)).unwrap_err());
     assert!(message.contains("keymap.toml"));
     assert!(message.contains("<Foo>"));
+}
+
+#[test]
+fn unknown_fields_in_all_files_preserve_known_values() {
+    let dir = TempDir::new();
+    dir.write("config.toml", "[future-feature]\nenabled = true\n[picker]\nremoved_setting = true\npreview_ratio = 70\n[switch-session]\nsurprise = true\nexclude_from_recency = ['_popup']");
+    dir.write("theme.toml", "[future-feature]\nenabled = true\n[picker]\nsparkle = { fg = 'red' }\nborder = { fg = 'green', future = true }");
+    dir.write("keymap.toml", "[future-feature]\nenabled = true\n[picker]\nfuture = true\nkeymap = [{ on = 'q', run = 'quit', note = 'x' }]");
+    let loaded = config::load_from(Some(&dir.0)).unwrap();
+    assert_eq!(loaded.config.picker.preview_ratio, 70);
+    assert_eq!(
+        loaded.config.switch_session.exclude_from_recency,
+        ["_popup"]
+    );
+    let mut expected = Theme::from_toml(&preset::theme(), None).unwrap();
+    expected.picker.border.fg = Some(ratatui::style::Color::Green);
+    assert_eq!(loaded.theme, expected);
+    assert_eq!(loaded.keymap.picker.len(), 1);
+    assert_eq!(
+        loaded.keymap.picker[0].run,
+        vec![pane_mux::picker::action::Action::Quit]
+    );
 }
 
 #[test]
@@ -191,5 +227,5 @@ fn documented_toml_examples_parse_over_presets() {
         }
     }
     assert!(block.is_none(), "unclosed TOML fence");
-    assert_eq!(count, 4, "expected all four documented file examples");
+    assert_eq!(count, 10, "expected all ten documented file examples");
 }

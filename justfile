@@ -10,6 +10,10 @@ fmt:
 lint:
     cargo clippy --all-targets -- -D warnings
 
+# Regenerate the committed editor schemas
+schemas:
+    PANE_MUX_UPDATE_SCHEMAS=1 cargo test config::schema::committed_schemas
+
 # Run tests
 test:
     cargo test

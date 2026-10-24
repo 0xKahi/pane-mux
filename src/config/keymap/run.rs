@@ -4,6 +4,29 @@ use anyhow::{Result, bail};
 
 use crate::picker::action::{Action, Case, Direction, Step};
 
+/// Names accepted by the command parser and published editor schema.
+#[cfg(test)]
+pub const COMMAND_NAMES: &[&str] = &[
+    "find",
+    "find_arrow",
+    "escape",
+    "quit",
+    "pick",
+    "create",
+    "cut",
+    "paste",
+    "rename",
+    "remove",
+    "help",
+    "close",
+    "backspace",
+    "kill-word",
+    "kill-bol",
+    "focus",
+    "arrow",
+    "seek",
+];
+
 /// Parse one command, rejecting unknown commands and unexpected arguments.
 pub fn parse_run(text: &str) -> Result<Action> {
     let words: Vec<&str> = text.split_whitespace().collect();
@@ -36,6 +59,8 @@ pub fn parse_run(text: &str) -> Result<Action> {
         ("quit", []) => Action::Quit,
         ("pick", []) => Action::Pick,
         ("create", []) => Action::Create,
+        ("cut", []) => Action::Cut,
+        ("paste", []) => Action::Paste,
         ("rename", []) => Action::Rename,
         ("remove", []) => Action::Remove,
         ("help", []) => Action::Help,
@@ -66,9 +91,9 @@ pub fn parse_run(text: &str) -> Result<Action> {
                 .map_err(|_| bad_args())?,
         ),
         (
-            "escape" | "quit" | "pick" | "create" | "rename" | "remove" | "help" | "close"
-            | "backspace" | "kill-word" | "kill-bol" | "focus" | "arrow" | "seek" | "find"
-            | "find_arrow",
+            "cut" | "paste" | "escape" | "quit" | "pick" | "create" | "rename" | "remove" | "help"
+            | "close" | "backspace" | "kill-word" | "kill-bol" | "focus" | "arrow" | "seek"
+            | "find" | "find_arrow",
             _,
         ) => return Err(bad_args()),
         _ => bail!("unknown command {name:?}"),
@@ -81,8 +106,45 @@ mod tests {
     use super::*;
 
     #[test]
+    fn command_names_match_parser_and_preset() {
+        for name in COMMAND_NAMES {
+            if let Err(error) = parse_run(name) {
+                assert!(
+                    error.to_string().contains("invalid arguments"),
+                    "{name}: {error}"
+                );
+            }
+        }
+        let preset: toml::Value = toml::from_str(&crate::config::preset::keymap()).unwrap();
+        for layer in preset.as_table().unwrap().values() {
+            for bindings in layer.as_table().unwrap().values() {
+                for binding in bindings.as_array().unwrap() {
+                    let run = &binding["run"];
+                    let commands = match run.as_str() {
+                        Some(command) => vec![command],
+                        None => run
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|v| v.as_str().unwrap())
+                            .collect(),
+                    };
+                    for command in commands {
+                        assert!(
+                            COMMAND_NAMES.contains(&command.split_whitespace().next().unwrap()),
+                            "{command}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn parses_navigation_and_popup_commands() {
         for (text, action) in [
+            ("cut", Action::Cut),
+            ("paste", Action::Paste),
             ("arrow next", Action::Arrow(Step::Next)),
             ("arrow prev", Action::Arrow(Step::Prev)),
             ("arrow top", Action::Arrow(Step::Top)),
@@ -160,6 +222,8 @@ mod tests {
             "seek 999999%",
             "focus top",
             "quit now",
+            "cut now",
+            "paste now",
             "close --other",
             "arrow 1 extra",
         ] {

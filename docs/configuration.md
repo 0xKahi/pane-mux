@@ -2,6 +2,29 @@
 
 See the [README](../README.md#configuration) for where configuration files are loaded from.
 
+Unknown keys and sections in all three files are ignored at runtime. Invalid TOML, wrong types, invalid values, unknown key names in `on`, and unknown commands in `run` still cause an error naming the file and exit code 2.
+
+## Editor validation
+
+Put the matching `#:schema` line at the top of each user file. Tombi or taplo uses it for editor validation; the schemas reject unknown keys and sections to catch typos that pane-mux ignores.
+
+<!-- config.toml -->
+```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/config.json
+```
+
+<!-- keymap.toml -->
+```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/keymap.json
+```
+
+<!-- theme.toml -->
+```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/theme.json
+```
+
+For contributors, `just schemas` regenerates `schemas/` from the config types. A test fails when the committed schemas are stale.
+
 ## Picker settings
 
 `config.toml` and `theme.toml` recursively merge tables over the defaults. Other values, including arrays, replace defaults; omitted keys retain defaults.
@@ -10,6 +33,8 @@ See the [README](../README.md#configuration) for where configuration files are l
 
 <!-- config.toml -->
 ```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/config.json
+
 [picker]
 preview_position = "top"
 preview_ratio = 75
@@ -21,8 +46,26 @@ In `config.toml`, `[switch-session] exclude_from_recency` is a list of exact ses
 
 <!-- config.toml -->
 ```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/config.json
+
 [switch-session]
 exclude_from_recency = ["_popup", "scratch"]
+```
+
+## Floating-pane settings
+
+In `config.toml`, `[floating-pane]` controls pane-column paste. `width` and `height` are integer percentages of the target window from 1 through 100 (default 50 each). `position` defaults to `"centre"` and accepts `top-left`, `top-centre`, `top-right`, `centre-left`, `centre`, `centre-right`, `bottom-left`, `bottom-centre`, `bottom-right`, `top-left-centre`, `top-right-centre`, `bottom-left-centre`, or `bottom-right-centre`. Invalid sizes or positions are config errors.
+
+Floating paste requires tmux 3.8. The old `always_on_top` setting has been removed and is ignored.
+
+<!-- config.toml -->
+```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/config.json
+
+[floating-pane]
+width = 80
+height = 30
+position = "bottom-centre"
 ```
 
 ## Key bindings
@@ -39,9 +82,12 @@ Binding conflicts compare the first two keys of the sequence (including a missin
 
 <!-- keymap.toml -->
 ```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/keymap.json
+
 [picker]
 prepend_keymap = [
-    { on = "x", run = "quit", desc = "Quit" },
+    { on = "x", run = "cut", desc = "Cut hovered pane" },
+    { on = "p", run = "paste", desc = "Paste cut pane" },
     { on = ["g", "g"], run = "arrow top", desc = "First item" },
     { on = ["<Space>", "/"], run = "find --smart", desc = "Find" },
     { on = "n", run = "find_arrow", desc = "Next match" },
@@ -57,11 +103,13 @@ append_keymap = [
 ]
 ```
 
+The default picker bindings include `x` → `cut` and `p` → `paste`; both commands take no arguments. See [picker actions](picker-actions.md#cut-and-paste) for destinations and prompts.
+
 Supported commands (arguments are whitespace-separated):
 
 | Layer | Commands |
 | --- | --- |
-| picker | `escape`, `quit`, `arrow next`, `arrow prev`, `arrow top`, `arrow bot`, `arrow N`, `arrow N%`, `focus prev`, `focus next`, `seek N%`, `pick`, `create`, `rename`, `remove`, `find [--previous] [--smart|--insensitive]`, `find_arrow [--previous]`, `help` |
+| picker | `escape`, `quit`, `arrow next`, `arrow prev`, `arrow top`, `arrow bot`, `arrow N`, `arrow N%`, `focus prev`, `focus next`, `seek N%`, `pick`, `create`, `rename`, `remove`, `cut`, `paste`, `find [--previous] [--smart|--insensitive]`, `find_arrow [--previous]`, `help` |
 | input | `close`, `close --submit`, `backspace`, `kill-word`, `kill-bol` |
 | confirm | `close`, `close --submit` |
 | help | `arrow` with the same arguments as above, `close` |
@@ -86,6 +134,7 @@ Theme sections and style keys:
 
 - `[picker]`: `border`, `header`, `session`, `window`, `pane` (row text styles), `find_keyword`, `find_position`
 - `[indicator]`: `parent`, `current`, `preview`, `padding = { open, close }`, `active = { text, fg, ... }`
+- `[marker]`: `cut`, `symbol`, `badge_cut`
 - `[preview]`: `border`, `title`
 - `[mode]`: `normal`, `input`, `confirm`
 - `[status]`: `overall`, `label`, `message`
@@ -99,6 +148,8 @@ Theme sections and style keys:
 
 `[indicator] padding` sets the hovered-row caps (defaults `"\uE0B6"` and `"\uE0B4"`, matching yazi). Either side can be overridden independently. Caps use the highlight colour against the terminal background; styles without a background or reversal use spaces instead. `active` sets the current-item marker (default `*`, magenta) and accepts the same style fields listed above. Non-current rows reserve the marker's display width. Names are not restyled for current items.
 
+`[marker]` styles the cut pane's left-edge bar independently of hover and the current-item marker: `cut` defaults to `{ fg = "lightred", bg = "lightred" }`, `symbol` to `"│"`, and `badge_cut` to `{ fg = "white", bg = "red" }` for the header's `cut <target>` badge.
+
 `[picker] session`, `window`, and `pane` set the base row text styles. Session names default to `#82AAFF`, window names to `lightcyan` (matching their default icons), and pane names to `white` (an explicit colour keeps the hover underline one colour). Unhovered icons and markers retain their own colours.
 
 `[input]` defaults are yellow `border`, red `title`, white `value`, and reversed `selected` (the text cursor). `[picker] find_keyword` styles matched text over the row style (default yellow, bold, italic, underline); `find_position` styles the `[X/Y]` badge (default magenta on `reset`, bold, italic).
@@ -107,6 +158,8 @@ Hovered rows patch an `[indicator]` style over the base style: columns left of f
 
 <!-- theme.toml -->
 ```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/theme.json
+
 [preview]
 border = { fg = "#82aaff" }
 
@@ -142,5 +195,27 @@ The complete, authoritative defaults are:
 - [config-default.toml](../src/config/preset/config-default.toml)
 - [keymap-default.toml](../src/config/preset/keymap-default.toml)
 - [theme-default.toml](../src/config/preset/theme-default.toml)
+
+The floating-pane and cut-marker defaults are:
+
+<!-- config.toml -->
+```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/config.json
+
+[floating-pane]
+width = 50
+height = 50
+position = "centre"
+```
+
+<!-- theme.toml -->
+```toml
+#:schema https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/theme.json
+
+[marker]
+cut = { fg = "lightred", bg = "lightred" }
+symbol = "│"
+badge_cut = { fg = "white", bg = "red" }
+```
 
 Debug builds read these preset files from the source tree at runtime. Release builds embed them in the binary, so the source tree is not needed.

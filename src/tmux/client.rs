@@ -11,6 +11,25 @@ pub trait Tmux {
     fn tree(&self) -> Result<Tree>;
     fn capture(&self, pane_id: &str) -> Result<String>;
     fn current(&self) -> Result<Option<Current>>;
+    fn resolve_pane(&self, target: &str) -> Result<String>;
+    fn move_pane_to_new_session(
+        &self,
+        pane_id: &str,
+        session_name: Option<&str>,
+        window_name: Option<&str>,
+    ) -> Result<(String, String)>;
+    fn move_pane_to_new_window(
+        &self,
+        pane_id: &str,
+        session_id: &str,
+        name: Option<&str>,
+    ) -> Result<String>;
+    fn float_pane_in_window(
+        &self,
+        pane_id: &str,
+        window_id: &str,
+        floating: &crate::config::settings::FloatingPaneConfig,
+    ) -> Result<()>;
     fn new_session(&self, name: Option<&str>) -> Result<String>;
     fn new_window(&self, session_id: &str, name: Option<&str>) -> Result<String>;
     fn rename_session(&self, session_id: &str, name: &str) -> Result<()>;
@@ -90,6 +109,100 @@ impl Tmux for TmuxCli {
 
     fn current(&self) -> Result<Option<Current>> {
         self.current_with_env(std::env::var("TMUX").ok().as_deref())
+    }
+
+    fn resolve_pane(&self, target: &str) -> Result<String> {
+        let id = self.run(&["display-message", "-p", "-t", target, "#{pane_id}"])?;
+        let id = id.trim();
+        ensure!(id.starts_with('%'), "pane not found: {target}");
+        Ok(id.into())
+    }
+
+    fn move_pane_to_new_session(
+        &self,
+        pane_id: &str,
+        session_name: Option<&str>,
+        window_name: Option<&str>,
+    ) -> Result<(String, String)> {
+        let mut args = vec![
+            "new-session",
+            "-d",
+            "-P",
+            "-F",
+            "#{session_id} #{window_id}",
+        ];
+        if let Some(name) = session_name {
+            args.extend(["-s", name]);
+        }
+        let output = self.run(&args)?;
+        let ids: Vec<_> = output.split_whitespace().collect();
+        ensure!(
+            ids.len() == 2,
+            "tmux new-session: expected session and window ids"
+        );
+        let (session, placeholder) = (ids[0], ids[1]);
+        let window = match self.move_pane_to_new_window(pane_id, session, window_name) {
+            Ok(window) => window,
+            Err(error) => {
+                let _ = self.kill_session(session);
+                return Err(error);
+            }
+        };
+        self.kill_window(placeholder)?;
+        self.run(&["move-window", "-r", "-t", session])?;
+        Ok((session.into(), window))
+    }
+
+    fn move_pane_to_new_window(
+        &self,
+        pane_id: &str,
+        session_id: &str,
+        name: Option<&str>,
+    ) -> Result<String> {
+        let target = format!("{session_id}:");
+        let mut args = vec![
+            "break-pane",
+            "-d",
+            "-P",
+            "-F",
+            "#{window_id}",
+            "-s",
+            pane_id,
+            "-t",
+            &target,
+        ];
+        if let Some(name) = name {
+            args.extend(["-n", name]);
+        }
+        Ok(self.run(&args)?.trim().into())
+    }
+
+    fn float_pane_in_window(
+        &self,
+        pane_id: &str,
+        window_id: &str,
+        floating: &crate::config::settings::FloatingPaneConfig,
+    ) -> Result<()> {
+        self.run(&["join-pane", "-d", "-s", pane_id, "-t", window_id])?;
+        self.run(&[
+            "break-pane",
+            "-W",
+            "-d",
+            "-s",
+            pane_id,
+            "-x",
+            &format!("{}%", floating.width),
+            "-y",
+            &format!("{}%", floating.height),
+        ])?;
+        self.run(&[
+            "move-pane",
+            "-P",
+            &floating.position.to_string(),
+            "-t",
+            pane_id,
+        ])?;
+        Ok(())
     }
 
     fn new_session(&self, name: Option<&str>) -> Result<String> {

@@ -18,6 +18,8 @@ pub enum Command {
     Picker(PickerArgs),
     /// Pick a target and switch the current tmux client to it.
     SwitchSession,
+    /// Move a pane using a locked cut-and-paste picker.
+    MovePane { target: Option<String> },
 }
 
 /// Optional output level; without a flag the focused column determines it.

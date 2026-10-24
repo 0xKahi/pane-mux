@@ -113,6 +113,12 @@ fn column(
             (" ", " ")
         };
         let y = inner.y + row as u16;
+        if level == Level::Pane && state.cut.as_deref() == Some(id.as_str()) && area.width > 0 {
+            frame.render_widget(
+                Paragraph::new(theme.marker.symbol.as_str()).style(Style::from(&theme.marker.cut)),
+                Rect::new(area.x, y, 1, 1),
+            );
+        }
         // Style the entire row first, including the edge spaces on underline rows.
         frame
             .buffer_mut()

@@ -80,17 +80,58 @@ impl FakeTmux {
         id
     }
 
+    // tmux moves the whole window when break-pane takes its only pane.
+    fn single_pane_window(tree: &Tree, pane_id: &str) -> Option<(String, String)> {
+        tree.sessions
+            .iter()
+            .flat_map(|s| &s.windows)
+            .find(|w| w.panes.len() == 1 && w.panes[0].id == pane_id)
+            .map(|w| (w.id.clone(), w.name.clone()))
+    }
+
+    fn take_pane(tree: &mut Tree, pane_id: &str) -> Result<Pane> {
+        for session in &mut tree.sessions {
+            for window in &mut session.windows {
+                if let Some(index) = window.panes.iter().position(|p| p.id == pane_id) {
+                    return Ok(window.panes.remove(index));
+                }
+            }
+        }
+        bail!("pane not found: {pane_id}")
+    }
+
+    fn prune(tree: &mut Tree) {
+        for session in &mut tree.sessions {
+            for window in &mut session.windows {
+                if !window.panes.iter().any(|p| p.active)
+                    && let Some(pane) = window.panes.first_mut()
+                {
+                    pane.active = true;
+                }
+            }
+            session.windows.retain(|w| !w.panes.is_empty());
+            if !session.windows.iter().any(|w| w.active)
+                && let Some(window) = session.windows.first_mut()
+            {
+                window.active = true;
+            }
+        }
+        tree.sessions.retain(|s| !s.windows.is_empty());
+    }
+
     fn window(&self, index: u32, name: Option<&str>, active: bool) -> Window {
         Window {
             id: self.fresh_id("@"),
             index,
             name: name.unwrap_or("shell").into(),
             active,
+            zoomed: false,
             panes: vec![Pane {
                 id: self.fresh_id("%"),
                 index: 0,
                 active: true,
                 command: "sh".into(),
+                floating: false,
             }],
         }
     }
@@ -110,6 +151,155 @@ impl Tmux for FakeTmux {
     fn current(&self) -> Result<Option<Current>> {
         self.record("current".into())?;
         Ok(self.current.clone())
+    }
+
+    fn resolve_pane(&self, target: &str) -> Result<String> {
+        self.record(format!("resolve-pane {target}"))?;
+        for session in &self.tree.borrow().sessions {
+            for window in &session.windows {
+                for pane in &window.panes {
+                    if pane.id == target
+                        || format!("{}:{}.{}", session.name, window.index, pane.index) == target
+                    {
+                        return Ok(pane.id.clone());
+                    }
+                }
+            }
+        }
+        bail!("pane not found: {target}")
+    }
+
+    fn move_pane_to_new_session(
+        &self,
+        pane_id: &str,
+        session_name: Option<&str>,
+        window_name: Option<&str>,
+    ) -> Result<(String, String)> {
+        self.record(format!(
+            "move-pane-to-new-session {pane_id} {} {}",
+            session_name.unwrap_or_default(),
+            window_name.unwrap_or_default()
+        ))?;
+        let mut tree = self.tree.borrow_mut();
+        if let Some(name) = session_name {
+            ensure!(
+                !tree.sessions.iter().any(|s| s.name == name),
+                "duplicate session: {name}"
+            );
+        }
+        let whole_window = Self::single_pane_window(&tree, pane_id);
+        let mut pane = Self::take_pane(&mut tree, pane_id)?;
+        pane.index = 0;
+        pane.active = true;
+        pane.floating = false;
+        let session_id = self.fresh_id("$");
+        let (window_id, default_name) =
+            whole_window.unwrap_or_else(|| (self.fresh_id("@"), pane.command.clone()));
+        // Remove the emptied source before inserting a window with its reused id.
+        Self::prune(&mut tree);
+        tree.sessions.push(Session {
+            id: session_id.clone(),
+            name: session_name
+                .map(String::from)
+                .unwrap_or_else(|| session_id[1..].into()),
+            last_attached: 0,
+            windows: vec![Window {
+                id: window_id.clone(),
+                index: 0,
+                name: window_name.unwrap_or(&default_name).into(),
+                active: true,
+                zoomed: false,
+                panes: vec![pane],
+            }],
+        });
+        Self::prune(&mut tree);
+        Ok((session_id, window_id))
+    }
+
+    fn move_pane_to_new_window(
+        &self,
+        pane_id: &str,
+        session_id: &str,
+        name: Option<&str>,
+    ) -> Result<String> {
+        self.record(format!(
+            "move-pane-to-new-window {pane_id} {session_id} {}",
+            name.unwrap_or_default()
+        ))?;
+        let mut tree = self.tree.borrow_mut();
+        ensure!(
+            tree.sessions.iter().any(|s| s.id == session_id),
+            "session not found: {session_id}"
+        );
+        let whole_window = Self::single_pane_window(&tree, pane_id);
+        let mut pane = Self::take_pane(&mut tree, pane_id)?;
+        pane.index = 0;
+        pane.active = true;
+        pane.floating = false;
+        let session = tree
+            .sessions
+            .iter_mut()
+            .find(|s| s.id == session_id)
+            .unwrap();
+        let index = session
+            .windows
+            .iter()
+            .map(|w| w.index)
+            .max()
+            .map_or(0, |i| i + 1);
+        let (id, default_name) =
+            whole_window.unwrap_or_else(|| (self.fresh_id("@"), pane.command.clone()));
+        session.windows.retain(|w| !w.panes.is_empty());
+        session.windows.push(Window {
+            id: id.clone(),
+            index,
+            name: name.unwrap_or(&default_name).into(),
+            active: false,
+            zoomed: false,
+            panes: vec![pane],
+        });
+        Self::prune(&mut tree);
+        Ok(id)
+    }
+
+    fn float_pane_in_window(
+        &self,
+        pane_id: &str,
+        window_id: &str,
+        floating: &crate::config::settings::FloatingPaneConfig,
+    ) -> Result<()> {
+        self.record(format!(
+            "float-pane-in-window {pane_id} {window_id} {} {} {}",
+            floating.width, floating.height, floating.position
+        ))?;
+        let mut tree = self.tree.borrow_mut();
+        let target = tree
+            .sessions
+            .iter()
+            .flat_map(|s| &s.windows)
+            .find(|w| w.id == window_id)
+            .ok_or_else(|| anyhow!("window not found: {window_id}"))?;
+        ensure!(!target.zoomed, "window is zoomed");
+        let mut pane = Self::take_pane(&mut tree, pane_id)?;
+        // join-pane accepts floating sources and makes them tiled first.
+        pane.floating = false;
+        let target = tree
+            .sessions
+            .iter_mut()
+            .flat_map(|s| &mut s.windows)
+            .find(|w| w.id == window_id)
+            .unwrap();
+        pane.index = target
+            .panes
+            .iter()
+            .map(|p| p.index)
+            .max()
+            .map_or(0, |i| i + 1);
+        pane.active = false;
+        pane.floating = true;
+        target.panes.push(pane);
+        Self::prune(&mut tree);
+        Ok(())
     }
 
     fn new_session(&self, name: Option<&str>) -> Result<String> {
@@ -269,11 +459,13 @@ pub fn sample_tree(names: &[&str]) -> Tree {
                     index: 0,
                     name: "shell".into(),
                     active: true,
+                    zoomed: false,
                     panes: vec![Pane {
                         id: format!("%{index}"),
                         index: 0,
                         active: true,
                         command: "sh".into(),
+                        floating: false,
                     }],
                 }],
             })
@@ -284,6 +476,91 @@ pub fn sample_tree(names: &[&str]) -> Tree {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn floating_config() -> crate::config::settings::FloatingPaneConfig {
+        crate::config::settings::FloatingPaneConfig {
+            width: 50,
+            height: 50,
+            position: crate::config::settings::FloatingPosition::Centre,
+        }
+    }
+
+    #[test]
+    fn pane_moves_preserve_ids_and_close_empty_containers() {
+        let fake = FakeTmux::new(sample_tree(&["work", "notes"]));
+        assert_eq!(fake.resolve_pane("work:0.0").unwrap(), "%0");
+        assert!(fake.resolve_pane("missing:0.0").is_err());
+        let (session, window) = fake
+            .move_pane_to_new_session("%0", Some("logs"), Some("tail"))
+            .unwrap();
+        let tree = fake.tree().unwrap();
+        assert!(!tree.sessions.iter().any(|s| s.id == "$0"));
+        let created = tree.sessions.iter().find(|s| s.id == session).unwrap();
+        assert_eq!(created.windows.len(), 1);
+        assert_eq!(created.windows[0].id, window);
+        assert_eq!(created.windows[0].name, "tail");
+        assert_eq!(created.windows[0].panes[0].id, "%0");
+        let window = fake
+            .move_pane_to_new_window("%0", "$1", Some("scratch"))
+            .unwrap();
+        assert_eq!(fake.tree().unwrap().sessions.len(), 1);
+        fake.float_pane_in_window("%0", "@1", &floating_config())
+            .unwrap();
+        let tree = fake.tree().unwrap();
+        assert!(!tree.sessions[0].windows.iter().any(|w| w.id == window));
+        let pane = tree.sessions[0].windows[0]
+            .panes
+            .iter()
+            .find(|p| p.id == "%0")
+            .unwrap();
+        assert!(pane.floating);
+    }
+
+    #[test]
+    fn moving_within_own_session_keeps_it_alive() {
+        let fake = FakeTmux::new(sample_tree(&["work"]));
+        let window = fake.move_pane_to_new_window("%0", "$0", None).unwrap();
+        let tree = fake.tree().unwrap();
+        assert_eq!(tree.sessions[0].id, "$0");
+        assert_eq!(tree.sessions[0].windows.len(), 1);
+        assert_eq!(tree.sessions[0].windows[0].id, window);
+        assert!(tree.sessions[0].windows[0].active);
+    }
+
+    #[test]
+    fn failed_moves_leave_tree_unchanged() {
+        let original = sample_tree(&["work", "notes"]);
+        let fake = FakeTmux::new(original.clone());
+        assert!(
+            fake.move_pane_to_new_session("%0", Some("notes"), None)
+                .is_err()
+        );
+        assert!(
+            fake.move_pane_to_new_session("%missing", Some("new"), None)
+                .is_err()
+        );
+        assert!(
+            fake.move_pane_to_new_window("%0", "$missing", None)
+                .is_err()
+        );
+        fake.fail_next("floating unsupported");
+        assert_eq!(
+            fake.float_pane_in_window("%0", "@1", &floating_config())
+                .unwrap_err()
+                .to_string(),
+            "floating unsupported"
+        );
+        assert_eq!(fake.tree().unwrap(), original);
+        fake.fail_next("move failed");
+        assert!(fake.move_pane_to_new_window("%0", "$1", None).is_err());
+        assert_eq!(fake.tree().unwrap(), original);
+        fake.fail_next("move failed");
+        assert!(
+            fake.move_pane_to_new_session("%0", Some("logs"), None)
+                .is_err()
+        );
+        assert_eq!(fake.tree().unwrap(), original);
+    }
 
     #[test]
     fn mutations_change_tree_and_record_calls() {

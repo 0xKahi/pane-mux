@@ -6,11 +6,31 @@ use crate::{config::keymap::Chord, tmux::Level};
 /// Operation to run when a name prompt is submitted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputPurpose {
-    Find { previous: bool, case: Case },
+    Find {
+        previous: bool,
+        case: Case,
+    },
     CreateSession,
-    CreateWindow { session_id: String },
-    RenameSession { id: String },
-    RenameWindow { id: String },
+    PasteSession {
+        pane_id: String,
+    },
+    PasteSessionWindow {
+        pane_id: String,
+        session_name: String,
+    },
+    PasteWindow {
+        pane_id: String,
+        session_id: String,
+    },
+    CreateWindow {
+        session_id: String,
+    },
+    RenameSession {
+        id: String,
+    },
+    RenameWindow {
+        id: String,
+    },
 }
 
 /// One modal popup. Which-key suggestions are tracked separately.

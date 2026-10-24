@@ -12,9 +12,10 @@ use crate::{
 };
 
 /// Run the picker, restoring the terminal before returning a target or cancellation.
-pub fn run(options: PickerOptions, tmux: &dyn Tmux, loaded: &Loaded) -> Result<Option<String>> {
+pub fn run(options: PickerOptions, tmux: &dyn Tmux, loaded: &Loaded) -> Result<Exit> {
     // Server/startup errors must not enter raw mode or the alternate screen.
     let mut state = State::load(options, tmux, suppressed_pane_from_env())?;
+    state.floating_pane = loaded.config.floating_pane.clone();
     let mut session = terminal::setup()?;
     let tick = Duration::from_millis(300);
     let mut last_tick = Instant::now();
@@ -34,10 +35,7 @@ pub fn run(options: PickerOptions, tmux: &dyn Tmux, loaded: &Loaded) -> Result<O
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => {
                     if let Some(exit) = state.handle_key(Key::from(key), &loaded.keymap, tmux) {
-                        return Ok(match exit {
-                            Exit::Pick(target) => Some(target),
-                            Exit::Cancel => None,
-                        });
+                        return Ok(exit);
                     }
                     dirty = true;
                 }

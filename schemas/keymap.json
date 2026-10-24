@@ -1,0 +1,110 @@
+{
+  "$id": "https://raw.githubusercontent.com/0xKahi/pane-mux/main/schemas/keymap.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "Chord": {
+      "additionalProperties": false,
+      "description": "A configured key sequence and the actions it dispatches in order.",
+      "properties": {
+        "desc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "on": {
+          "$ref": "#/definitions/On"
+        },
+        "run": {
+          "$ref": "#/definitions/Run"
+        }
+      },
+      "required": [
+        "on",
+        "run"
+      ],
+      "type": "object"
+    },
+    "Layer": {
+      "additionalProperties": false,
+      "properties": {
+        "append_keymap": {
+          "items": {
+            "$ref": "#/definitions/Chord"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "keymap": {
+          "items": {
+            "$ref": "#/definitions/Chord"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "prepend_keymap": {
+          "items": {
+            "$ref": "#/definitions/Chord"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "On": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      ],
+      "description": "A key or sequence of keys; supports key names and modifiers such as <C-a>."
+    },
+    "Run": {
+      "anyOf": [
+        {
+          "pattern": "^(find|find_arrow|escape|quit|pick|create|cut|paste|rename|remove|help|close|backspace|kill-word|kill-bol|focus|arrow|seek)(\\s.*)?$",
+          "type": "string"
+        },
+        {
+          "items": {
+            "pattern": "^(find|find_arrow|escape|quit|pick|create|cut|paste|rename|remove|help|close|backspace|kill-word|kill-bol|focus|arrow|seek)(\\s.*)?$",
+            "type": "string"
+          },
+          "type": "array"
+        }
+      ],
+      "description": "One command or an ordered list of commands, with optional arguments."
+    }
+  },
+  "properties": {
+    "confirm": {
+      "$ref": "#/definitions/Layer"
+    },
+    "help": {
+      "$ref": "#/definitions/Layer"
+    },
+    "input": {
+      "$ref": "#/definitions/Layer"
+    },
+    "picker": {
+      "$ref": "#/definitions/Layer"
+    }
+  },
+  "title": "KeymapFile",
+  "type": "object"
+}

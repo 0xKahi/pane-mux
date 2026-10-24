@@ -14,6 +14,7 @@ fn execute(cli: Cli) -> anyhow::Result<Outcome> {
     match cli.command {
         Command::Picker(args) => commands::picker::run(args.level(), &tmux, &loaded),
         Command::SwitchSession => commands::switch_session::run(&tmux, &loaded),
+        Command::MovePane { target } => commands::move_pane::run(target.as_deref(), &tmux, &loaded),
     }
 }
 
