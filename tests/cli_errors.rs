@@ -160,6 +160,24 @@ fn invalid_known_values_exit_two_and_name_file_and_setting() {
 }
 
 #[test]
+fn float_toggle_requires_target_outside_tmux() {
+    let dir = TempDir::new();
+    let output = run(dir.command().args(["float", "toggle"]));
+    assert!(assert_error(&output).contains("requires a target outside tmux"));
+}
+
+#[test]
+fn float_help_lists_actions() {
+    let dir = TempDir::new();
+    let output = run(dir.command().args(["float", "--help"]));
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for action in ["stash", "unstash", "toggle"] {
+        assert!(stdout.contains(action));
+    }
+}
+
+#[test]
 fn help_lists_all_commands() {
     let dir = TempDir::new();
     let output = run(dir.command().arg("--help"));

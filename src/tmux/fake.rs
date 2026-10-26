@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, collections::HashMap};
 
-use anyhow::{Result, anyhow, bail, ensure};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 
 use super::{Current, Pane, Session, Tmux, Tree, Window};
 
@@ -15,7 +15,13 @@ pub struct FakeTmux {
     captures: HashMap<String, String>,
     calls: RefCell<Vec<String>>,
     failure: RefCell<Option<String>>,
+    failure_match: RefCell<Option<String>>,
     next_id: RefCell<u64>,
+    details: RefCell<HashMap<String, super::model::FloatPane>>,
+    sizes: RefCell<HashMap<String, (i32, i32)>>,
+    options: RefCell<HashMap<(String, String, String), String>>,
+    last_tiled: RefCell<HashMap<String, String>>,
+    above_zoom: RefCell<HashMap<String, bool>>,
 }
 
 impl FakeTmux {
@@ -39,7 +45,13 @@ impl FakeTmux {
             captures: HashMap::new(),
             calls: RefCell::new(Vec::new()),
             failure: RefCell::new(None),
+            failure_match: RefCell::new(None),
             next_id: RefCell::new(next_id),
+            details: RefCell::new(HashMap::new()),
+            sizes: RefCell::new(HashMap::new()),
+            options: RefCell::new(HashMap::new()),
+            last_tiled: RefCell::new(HashMap::new()),
+            above_zoom: RefCell::new(HashMap::new()),
         }
     }
 
@@ -60,14 +72,26 @@ impl FakeTmux {
         *self.failure.borrow_mut() = Some(message.into());
     }
 
+    /// Delay the next injected failure until a matching call (for multi-step commands).
+    pub fn fail_next_matching(&self, pattern: &str, message: &str) {
+        self.fail_next(message);
+        *self.failure_match.borrow_mut() = Some(pattern.into());
+    }
+
     /// Return a copy of the recorded calls.
     pub fn calls(&self) -> Vec<String> {
         self.calls.borrow().clone()
     }
 
     fn record(&self, call: String) -> Result<()> {
+        let matches = self
+            .failure_match
+            .borrow()
+            .as_ref()
+            .is_none_or(|pattern| call.contains(pattern));
         self.calls.borrow_mut().push(call);
-        if let Some(message) = self.failure.borrow_mut().take() {
+        if matches && let Some(message) = self.failure.borrow_mut().take() {
+            self.failure_match.borrow_mut().take();
             bail!(message);
         }
         Ok(())
@@ -138,6 +162,359 @@ impl FakeTmux {
 }
 
 impl Tmux for FakeTmux {
+    fn float_window(&self, window: &str) -> Result<super::model::FloatWindow> {
+        self.record(format!("float-window {window}"))?;
+        let tree = self.tree.borrow();
+        let w = tree
+            .sessions
+            .iter()
+            .flat_map(|s| &s.windows)
+            .find(|w| w.id == window)
+            .ok_or_else(|| anyhow!("window not found: {window}"))?;
+        let (width, height) = self
+            .sizes
+            .borrow()
+            .get(window)
+            .copied()
+            .unwrap_or((200, 50));
+        let mut snapshot = super::model::FloatWindow {
+            width,
+            height,
+            zoomed: w.zoomed,
+            panes: w
+                .panes
+                .iter()
+                .map(|p| {
+                    let mut d = self
+                        .details
+                        .borrow()
+                        .get(&p.id)
+                        .cloned()
+                        .unwrap_or_else(|| super::model::FloatPane {
+                            width: 60,
+                            height: 15,
+                            left: 1,
+                            top: 1,
+                            ..Default::default()
+                        });
+                    d.id = p.id.clone();
+                    d.active = p.active;
+                    let above = self
+                        .above_zoom
+                        .borrow()
+                        .get(&p.id)
+                        .copied()
+                        .unwrap_or(false);
+                    d.floating = p.floating && (!w.zoomed || above);
+                    d.flags = format!(
+                        "{}{}{}",
+                        if d.floating { "F" } else { "" },
+                        if above { "A" } else { "" },
+                        if p.active { "*" } else { "" }
+                    );
+                    if p.floating && w.zoomed && !above {
+                        d.z = 999;
+                    }
+                    d
+                })
+                .collect(),
+        };
+        if snapshot.zoomed {
+            super::format::apply_layout_floats(&mut snapshot, &self.window_layout(window)?)?;
+        }
+        Ok(snapshot)
+    }
+
+    fn window_layout(&self, window: &str) -> Result<String> {
+        self.record(format!("window-layout {window}"))?;
+        let tree = self.tree.borrow();
+        let w = tree
+            .sessions
+            .iter()
+            .flat_map(|s| &s.windows)
+            .find(|w| w.id == window)
+            .context("window not found")?;
+        let details = self.details.borrow();
+        let leaves: Vec<_> = w
+            .panes
+            .iter()
+            .map(|p| {
+                let d = details
+                    .get(&p.id)
+                    .cloned()
+                    .unwrap_or_else(|| super::model::FloatPane {
+                        width: 60,
+                        height: 15,
+                        left: 1,
+                        top: 1,
+                        ..Default::default()
+                    });
+                let z = if p.floating {
+                    format!(",\"z\":{}", d.z)
+                } else {
+                    String::new()
+                };
+                format!(
+                    "{{\"t\":\"p\",\"w\":{},\"h\":{},\"x\":{},\"y\":{}{},\"I\":\"{}\"}}",
+                    d.width, d.height, d.left, d.top, z, p.id
+                )
+            })
+            .collect();
+        Ok(format!(
+            "{{\"V\":2,\"L\":{{\"t\":\"v\",\"c\":[{}]}}}}",
+            leaves.join(",")
+        ))
+    }
+
+    fn new_dummy_float(
+        &self,
+        window: &str,
+        width: &str,
+        height: &str,
+        x: Option<i32>,
+        y: Option<i32>,
+    ) -> Result<String> {
+        self.record(format!("new-pane -d -A -E -T pane-mux-dummy -t {window} -x {width} -y {height}{}{} -P -F #{{pane_id}}",
+            x.map(|v| format!(" -X {v}")).unwrap_or_default(), y.map(|v| format!(" -Y {v}")).unwrap_or_default()))?;
+        let mut tree = self.tree.borrow_mut();
+        let w = tree
+            .sessions
+            .iter_mut()
+            .flat_map(|s| &mut s.windows)
+            .find(|w| w.id == window)
+            .context("window not found")?;
+        let (ww, wh) = self
+            .sizes
+            .borrow()
+            .get(window)
+            .copied()
+            .unwrap_or((200, 50));
+        let size = |value: &str, total: i32| -> Result<i32> {
+            Ok(if let Some(percent) = value.strip_suffix('%') {
+                percent.parse::<i32>()? * total / 100
+            } else {
+                value.parse()?
+            })
+        };
+        let width = size(width, ww)?;
+        let height = size(height, wh)?;
+        let x = x.unwrap_or((ww - width) / 2);
+        let y = y.unwrap_or((wh - height) / 2);
+        ensure!(x < ww && y < wh, "position too large");
+        let id = self.fresh_id("%");
+        let mut details = self.details.borrow_mut();
+        for p in &w.panes {
+            if p.floating {
+                details.entry(p.id.clone()).or_default().z += 1;
+            }
+        }
+        details.insert(
+            id.clone(),
+            super::model::FloatPane {
+                id: id.clone(),
+                title: "pane-mux-dummy".into(),
+                width: width - 2,
+                height: height - 2,
+                left: x + 1,
+                top: y + 1,
+                ..Default::default()
+            },
+        );
+        self.above_zoom.borrow_mut().insert(id.clone(), true);
+        w.panes.push(Pane {
+            id: id.clone(),
+            index: w.panes.iter().map(|p| p.index).max().unwrap_or(0) + 1,
+            floating: true,
+            ..Default::default()
+        });
+        Ok(id)
+    }
+
+    fn swap_and_kill(&self, pane: &str, dummy: &str) -> Result<()> {
+        self.record(format!(
+            "swap-pane -d -Z -s {pane} -t {dummy} ; kill-pane -t {dummy}"
+        ))?;
+        {
+            let mut tree = self.tree.borrow_mut();
+            let locate = |id: &str| -> Result<(usize, usize, usize)> {
+                tree.sessions
+                    .iter()
+                    .enumerate()
+                    .find_map(|(si, s)| {
+                        s.windows.iter().enumerate().find_map(|(wi, w)| {
+                            w.panes
+                                .iter()
+                                .position(|p| p.id == id)
+                                .map(|pi| (si, wi, pi))
+                        })
+                    })
+                    .context("pane not found")
+            };
+            let (si, wi, pi) = locate(pane)?;
+            let (ds, dw, dp) = locate(dummy)?;
+            let a = tree.sessions[si].windows[wi].panes[pi].clone();
+            let b = tree.sessions[ds].windows[dw].panes[dp].clone();
+            let mut moved = a.clone();
+            moved.index = b.index;
+            moved.active = b.active;
+            moved.floating = b.floating;
+            let mut replaced = b;
+            replaced.index = a.index;
+            replaced.active = a.active;
+            replaced.floating = a.floating;
+            tree.sessions[si].windows[wi].panes[pi] = replaced;
+            tree.sessions[ds].windows[dw].panes[dp] = moved;
+            let mut details = self.details.borrow_mut();
+            let a = details
+                .get(pane)
+                .cloned()
+                .unwrap_or_else(|| super::model::FloatPane {
+                    width: 60,
+                    height: 15,
+                    left: 1,
+                    top: 1,
+                    ..Default::default()
+                });
+            let b = details.get(dummy).cloned().unwrap_or_default();
+            for (id, own, slot) in [(pane, &a, &b), (dummy, &b, &a)] {
+                let mut d = own.clone();
+                d.width = slot.width;
+                d.height = slot.height;
+                d.left = slot.left;
+                d.top = slot.top;
+                d.z = slot.z;
+                details.insert(id.into(), d);
+            }
+        }
+        self.kill_pane(dummy)
+    }
+
+    fn set_option(&self, scope: &str, target: &str, name: &str, value: &str) -> Result<()> {
+        self.record(format!("set-option {scope} {target} {name} {value}"))?;
+        if scope == "-p" {
+            self.details
+                .borrow_mut()
+                .entry(target.into())
+                .or_default()
+                .options
+                .insert(name.into(), value.into());
+        } else {
+            self.options
+                .borrow_mut()
+                .insert((scope.into(), target.into(), name.into()), value.into());
+        }
+        Ok(())
+    }
+
+    fn option(&self, scope: &str, target: &str, name: &str) -> Result<String> {
+        self.record(format!("show-options {scope} {target} {name}"))?;
+        if scope == "-p" {
+            return Ok(self
+                .details
+                .borrow()
+                .get(target)
+                .and_then(|p| p.options.get(name))
+                .cloned()
+                .unwrap_or_default());
+        }
+        Ok(self
+            .options
+            .borrow()
+            .get(&(scope.into(), target.into(), name.into()))
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    fn resize_window(&self, window: &str, width: i32, height: i32) -> Result<()> {
+        self.record(format!("resize-window -t {window} -x {width} -y {height}"))?;
+        self.sizes
+            .borrow_mut()
+            .insert(window.into(), (width, height));
+        Ok(())
+    }
+
+    fn toggle_zoom(&self, pane: &str) -> Result<()> {
+        self.record(format!("resize-pane -Z -t {pane}"))?;
+        let mut tree = self.tree.borrow_mut();
+        let w = tree
+            .sessions
+            .iter_mut()
+            .flat_map(|s| &mut s.windows)
+            .find(|w| w.panes.iter().any(|p| p.id == pane))
+            .context("pane not found")?;
+        w.zoomed = !w.zoomed;
+        Ok(())
+    }
+
+    fn select_pane(&self, pane: &str) -> Result<()> {
+        self.record(format!("select-pane -t {pane}"))?;
+        let mut tree = self.tree.borrow_mut();
+        let w = tree
+            .sessions
+            .iter_mut()
+            .flat_map(|s| &mut s.windows)
+            .find(|w| w.panes.iter().any(|p| p.id == pane))
+            .context("pane not found")?;
+        if let Some(p) = w.panes.iter().find(|p| p.active && !p.floating) {
+            self.last_tiled
+                .borrow_mut()
+                .insert(w.id.clone(), p.id.clone());
+        }
+        for p in &mut w.panes {
+            p.active = p.id == pane;
+        }
+        Ok(())
+    }
+
+    fn display_message(&self, target: &str, message: &str) -> Result<()> {
+        self.record(format!("display-message -t {target} {message}"))
+    }
+
+    fn stash_window(
+        &self,
+        session: Option<&str>,
+        name: &str,
+        command: &str,
+        width: i32,
+        height: i32,
+    ) -> Result<String> {
+        self.record(format!(
+            "stash-window {} {name} {command} {width} {height}",
+            session.unwrap_or("pmux")
+        ))?;
+        let creating_session = session.is_none();
+        let session = match session {
+            Some(s) => s.to_owned(),
+            None => self.new_session(Some("pmux"))?,
+        };
+        let window = if creating_session {
+            let id = self
+                .tree
+                .borrow()
+                .sessions
+                .iter()
+                .find(|s| s.id == session)
+                .unwrap()
+                .windows[0]
+                .id
+                .clone();
+            self.rename_window(&id, name)?;
+            id
+        } else {
+            self.new_window(&session, Some(name))?
+        };
+        self.resize_window(&window, width, height)?;
+        Ok(window)
+    }
+
+    fn socket_path(&self) -> Result<String> {
+        self.record("socket-path".into())?;
+        Ok(format!(
+            "{}/pane-mux-fake-{}",
+            std::env::temp_dir().display(),
+            std::process::id()
+        ))
+    }
     fn tree(&self) -> Result<Tree> {
         self.record("tree".into())?;
         Ok(self.tree.borrow().clone())
@@ -159,6 +536,13 @@ impl Tmux for FakeTmux {
             for window in &session.windows {
                 for pane in &window.panes {
                     if pane.id == target
+                        || (pane.active
+                            && (target == window.id
+                                || target == format!("{}:{}", session.name, window.index)
+                                || target == format!("{}:{}", session.name, window.name)))
+                        || (pane.active
+                            && window.active
+                            && (target == session.id || target == session.name))
                         || format!("{}:{}.{}", session.name, window.index, pane.index) == target
                     {
                         return Ok(pane.id.clone());
@@ -272,34 +656,41 @@ impl Tmux for FakeTmux {
             "float-pane-in-window {pane_id} {window_id} {} {} {}",
             floating.width, floating.height, floating.position
         ))?;
-        let mut tree = self.tree.borrow_mut();
-        let target = tree
-            .sessions
-            .iter()
-            .flat_map(|s| &s.windows)
-            .find(|w| w.id == window_id)
-            .ok_or_else(|| anyhow!("window not found: {window_id}"))?;
-        ensure!(!target.zoomed, "window is zoomed");
-        let mut pane = Self::take_pane(&mut tree, pane_id)?;
-        // join-pane accepts floating sources and makes them tiled first.
-        pane.floating = false;
-        let target = tree
-            .sessions
-            .iter_mut()
-            .flat_map(|s| &mut s.windows)
-            .find(|w| w.id == window_id)
-            .unwrap();
-        pane.index = target
-            .panes
-            .iter()
-            .map(|p| p.index)
-            .max()
-            .map_or(0, |i| i + 1);
-        pane.active = false;
-        pane.floating = true;
-        target.panes.push(pane);
-        Self::prune(&mut tree);
-        Ok(())
+        ensure!(!self.float_window(window_id)?.zoomed, "window is zoomed");
+        let dummy = self.new_dummy_float(
+            window_id,
+            &format!("{}%", floating.width),
+            &format!("{}%", floating.height),
+            None,
+            None,
+        )?;
+        self.record(format!("move-pane -P {} -t {dummy}", floating.position))?;
+        let (ww, wh) = self
+            .sizes
+            .borrow()
+            .get(window_id)
+            .copied()
+            .unwrap_or((200, 50));
+        {
+            let mut details = self.details.borrow_mut();
+            let d = details.get_mut(&dummy).unwrap();
+            let position = floating.position.to_string();
+            d.left = if position.contains("left") {
+                1
+            } else if position.contains("right") {
+                ww - d.width - 1
+            } else {
+                (ww - d.width) / 2
+            };
+            d.top = if position.contains("top") {
+                1
+            } else if position.contains("bottom") {
+                wh - d.height - 1
+            } else {
+                (wh - d.height) / 2
+            };
+        }
+        self.swap_and_kill(pane_id, &dummy)
     }
 
     fn new_session(&self, name: Option<&str>) -> Result<String> {
@@ -421,11 +812,34 @@ impl Tmux for FakeTmux {
         );
         for session in &mut tree.sessions {
             for window in &mut session.windows {
+                let removed_z = window
+                    .panes
+                    .iter()
+                    .find(|p| p.id == pane_id && p.floating)
+                    .map(|p| self.details.borrow().get(&p.id).map_or(0, |d| d.z));
                 window.panes.retain(|p| p.id != pane_id);
-                if !window.panes.iter().any(|p| p.active)
-                    && let Some(pane) = window.panes.first_mut()
-                {
-                    pane.active = true;
+                if let Some(z) = removed_z {
+                    let mut details = self.details.borrow_mut();
+                    for p in &window.panes {
+                        if p.floating {
+                            let d = details.entry(p.id.clone()).or_default();
+                            if d.z > z {
+                                d.z -= 1;
+                            }
+                        }
+                    }
+                }
+                if !window.panes.iter().any(|p| p.active) {
+                    let last = self.last_tiled.borrow().get(&window.id).cloned();
+                    let next = window
+                        .panes
+                        .iter()
+                        .position(|p| Some(&p.id) == last.as_ref() && !p.floating)
+                        .or_else(|| window.panes.iter().position(|p| !p.floating))
+                        .or_else(|| (!window.panes.is_empty()).then_some(0));
+                    if let Some(i) = next {
+                        window.panes[i].active = true;
+                    }
                 }
             }
             session.windows.retain(|w| !w.panes.is_empty());
@@ -483,6 +897,84 @@ mod tests {
             height: 50,
             position: crate::config::settings::FloatingPosition::Centre,
         }
+    }
+
+    #[test]
+    fn cross_window_swap_keeps_identity_options_and_destination_slot() {
+        let fake = FakeTmux::new(sample_tree(&["work", "stash"]));
+        fake.set_option("-p", "%0", "@pmux_test", "kept").unwrap();
+        let back = fake
+            .new_dummy_float("@1", "42", "12", Some(3), Some(4))
+            .unwrap();
+        let dummy = fake
+            .new_dummy_float("@1", "62", "17", Some(119), Some(4))
+            .unwrap();
+        fake.select_pane(&dummy).unwrap();
+        fake.swap_and_kill("%0", &dummy).unwrap();
+        let tree = fake.tree().unwrap();
+        assert_eq!(tree.sessions.len(), 1); // Empty source window and session closed.
+        let window = fake.float_window("@1").unwrap();
+        let moved = window.panes.iter().find(|p| p.id == "%0").unwrap();
+        assert!(moved.floating && moved.active);
+        assert_eq!(
+            (moved.width, moved.height, moved.left, moved.top, moved.z),
+            (60, 15, 120, 5, 0)
+        );
+        assert_eq!(moved.options["@pmux_test"], "kept");
+        assert!(!moved.flags.contains('A')); // Attribute belongs to identity, not slot.
+        assert_eq!(window.panes.iter().find(|p| p.id == back).unwrap().z, 1);
+        assert!(!window.panes.iter().any(|p| p.id == dummy));
+        assert!(fake.calls().contains(&format!(
+            "swap-pane -d -Z -s %0 -t {dummy} ; kill-pane -t {dummy}"
+        )));
+    }
+
+    #[test]
+    fn swap_keeps_zoom_and_source_last_tiled_focus() {
+        let fake = FakeTmux::new(sample_tree(&["work", "stash"]));
+        let source = fake
+            .new_dummy_float("@0", "62", "17", Some(10), Some(5))
+            .unwrap();
+        fake.above_zoom.borrow_mut().insert(source.clone(), false);
+        fake.select_pane(&source).unwrap();
+        fake.toggle_zoom("%0").unwrap();
+        fake.toggle_zoom("%1").unwrap();
+        let dummy = fake
+            .new_dummy_float("@1", "62", "17", Some(10), Some(5))
+            .unwrap();
+        fake.swap_and_kill(&source, &dummy).unwrap();
+        let src = fake.float_window("@0").unwrap();
+        assert!(src.zoomed && src.panes[0].active);
+        let dst = fake.float_window("@1").unwrap();
+        assert!(dst.zoomed);
+        let moved = dst.panes.iter().find(|p| p.id == source).unwrap();
+        assert!(moved.floating && !moved.active);
+        assert_eq!(
+            (moved.width, moved.height, moved.left, moved.top, moved.z),
+            (60, 15, 11, 6, 0)
+        );
+    }
+
+    #[test]
+    fn zoomed_query_recovers_hidden_float_geometry_and_z_from_layout() {
+        let fake = FakeTmux::new(sample_tree(&["work"]));
+        let hidden = fake
+            .new_dummy_float("@0", "62", "17", Some(119), Some(4))
+            .unwrap();
+        fake.above_zoom.borrow_mut().insert(hidden.clone(), false);
+        let visible = fake
+            .new_dummy_float("@0", "42", "12", Some(9), Some(7))
+            .unwrap();
+        fake.toggle_zoom("%0").unwrap();
+        let window = fake.float_window("@0").unwrap();
+        let p = window.panes.iter().find(|p| p.id == hidden).unwrap();
+        assert!(p.floating);
+        assert!(!p.flags.contains('F')); // Underlying pane query hid it.
+        assert_eq!((p.z, p.width, p.height, p.left, p.top), (1, 60, 15, 120, 5));
+        let p = window.panes.iter().find(|p| p.id == visible).unwrap();
+        assert!(p.floating && p.flags.contains('A'));
+        assert_eq!(p.z, 0);
+        assert!(fake.calls().contains(&"window-layout @0".into()));
     }
 
     #[test]

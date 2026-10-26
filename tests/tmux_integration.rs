@@ -111,7 +111,340 @@ fn private_server_tree_capture_and_mutations() {
     pane_moves(&client, &session, floating_supported);
     if floating_supported {
         floating_source_moves(&client, &session);
+        float_swap_regressions(&client, &session);
+        float_stash_round_trip(&client, &session);
     }
+}
+
+fn float_stash_round_trip(client: &TmuxCli, session: &str) {
+    use pane_mux::tmux::model::FloatGeometry;
+    let window = client.new_window(session, Some("float stash")).unwrap();
+    client.resize_window(&window, 200, 50).unwrap();
+    let tiled = client.float_window(&window).unwrap().panes[0].id.clone();
+    let mut originals = Vec::new();
+    for g in [
+        FloatGeometry {
+            x: 119,
+            y: 4,
+            width: 62,
+            height: 17,
+        },
+        FloatGeometry {
+            x: 20,
+            y: 10,
+            width: 42,
+            height: 12,
+        },
+    ] {
+        let id = client
+            .run(&[
+                "new-pane",
+                "-d",
+                "-t",
+                &window,
+                "-x",
+                &g.width.to_string(),
+                "-y",
+                &g.height.to_string(),
+                "-X",
+                &g.x.to_string(),
+                "-Y",
+                &g.y.to_string(),
+                "-P",
+                "-F",
+                "#{pane_id}",
+            ])
+            .unwrap()
+            .trim()
+            .to_owned();
+        originals.push((id, g));
+    }
+    client.select_pane(&originals[0].0).unwrap();
+    let before = client.float_window(&window).unwrap();
+    pane_mux::commands::float::run_stash(Some(&tiled), client).unwrap();
+    assert_eq!(client.float_window(&window).unwrap().panes.len(), 1);
+    let tree = client.tree().unwrap();
+    let stash = tree.sessions.iter().find(|s| s.name == "pmux").unwrap();
+    let stash_window = stash
+        .windows
+        .iter()
+        .find(|w| client.option("-w", &w.id, "@pmux_source").unwrap() == window)
+        .unwrap();
+    let stashed = client.float_window(&stash_window.id).unwrap();
+    assert_eq!(stashed.panes.len(), 3);
+    assert_eq!(stashed.panes.iter().filter(|p| !p.floating).count(), 1);
+    for (id, g) in &originals {
+        let p = stashed.panes.iter().find(|p| &p.id == id).unwrap();
+        assert!(p.floating);
+        assert_eq!(FloatGeometry::capture(p), *g);
+    }
+    // Stash resizing must not change the restore metadata.
+    client.resize_window(&stash_window.id, 100, 30).unwrap();
+    pane_mux::commands::float::run_unstash(Some(&tiled), client).unwrap();
+    let after = client.float_window(&window).unwrap();
+    for p in before.panes.iter().filter(|p| p.floating) {
+        let restored = after.panes.iter().find(|r| r.id == p.id).unwrap();
+        assert_eq!(FloatGeometry::capture(restored), FloatGeometry::capture(p));
+        assert_eq!(restored.z, p.z);
+        assert_eq!(restored.active, p.active);
+    }
+    assert!(
+        !client
+            .tree()
+            .unwrap()
+            .sessions
+            .iter()
+            .any(|s| s.name == "pmux")
+    );
+    pane_mux::commands::float::run_stash(Some(&tiled), client).unwrap();
+    client.resize_window(&window, 100, 25).unwrap();
+    pane_mux::commands::float::run_unstash(Some(&tiled), client).unwrap();
+    let after = client.float_window(&window).unwrap();
+    for (id, g) in originals {
+        let p = after.panes.iter().find(|p| p.id == id).unwrap();
+        let scaled = FloatGeometry::capture(p);
+        assert_eq!(scaled, g.scaled((200, 50), (100, 25)));
+        assert!(scaled.x >= 0 && scaled.y >= 0);
+        assert!(scaled.x + scaled.width <= 100 && scaled.y + scaled.height <= 25);
+    }
+}
+
+/// Regression coverage is called only after checking the private server's version.
+fn float_swap_regressions(client: &TmuxCli, session: &str) {
+    use pane_mux::commands::float::{run_stash, run_toggle, run_unstash};
+    use pane_mux::tmux::model::FloatGeometry;
+    use std::{
+        fs,
+        thread::sleep,
+        time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    };
+
+    struct Logs(std::path::PathBuf);
+    impl Drop for Logs {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    fn quote(s: &str) -> String {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    }
+    let logs = Logs(std::env::temp_dir().join(format!(
+            "pane-mux-winch-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )));
+    fs::create_dir(&logs.0).unwrap();
+    let logger = |name: &str| {
+        let log = quote(logs.0.join(format!("{name}.log")).to_str().unwrap());
+        let ready = quote(logs.0.join(format!("{name}.ready")).to_str().unwrap());
+        let script = format!(
+            "trap {} WINCH; touch {ready}; while :; do sleep 1; done",
+            quote(&format!("echo WINCH >> {log}"))
+        );
+        format!("exec sh -c {}", quote(&script))
+    };
+    let window = client
+        .new_window(session, Some("swap regressions"))
+        .unwrap();
+    client.resize_window(&window, 200, 50).unwrap();
+    let tiled = client.float_window(&window).unwrap().panes[0].id.clone();
+    client
+        .run(&["respawn-pane", "-k", "-t", &tiled, &logger("main")])
+        .unwrap();
+    let float = client
+        .run(&[
+            "new-pane",
+            "-d",
+            "-t",
+            &window,
+            "-x",
+            "62",
+            "-y",
+            "17",
+            "-X",
+            "119",
+            "-Y",
+            "4",
+            "-P",
+            "-F",
+            "#{pane_id}",
+            &logger("float"),
+        ])
+        .unwrap()
+        .trim()
+        .to_owned();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !["main", "float"]
+        .iter()
+        .all(|name| logs.0.join(format!("{name}.ready")).exists())
+    {
+        assert!(
+            Instant::now() < deadline,
+            "SIGWINCH loggers failed to start"
+        );
+        sleep(Duration::from_millis(20));
+    }
+    // Settle setup signals before measuring only the stash/unstash round trip.
+    sleep(Duration::from_millis(1200));
+    for name in ["main", "float"] {
+        fs::write(logs.0.join(format!("{name}.log")), "").unwrap();
+    }
+    let original = client
+        .float_window(&window)
+        .unwrap()
+        .panes
+        .into_iter()
+        .find(|p| p.id == float)
+        .unwrap();
+    run_stash(Some(&tiled), client).unwrap();
+    run_unstash(Some(&tiled), client).unwrap();
+    sleep(Duration::from_millis(1200));
+    for name in ["main", "float"] {
+        let text = fs::read_to_string(logs.0.join(format!("{name}.log"))).unwrap();
+        assert!(
+            text.is_empty(),
+            "{name} resized during stash/unstash: {text}"
+        );
+    }
+    let restored = client
+        .float_window(&window)
+        .unwrap()
+        .panes
+        .into_iter()
+        .find(|p| p.id == float)
+        .unwrap();
+    assert_eq!(
+        FloatGeometry::capture(&restored),
+        FloatGeometry::capture(&original)
+    );
+
+    client
+        .run(&[
+            "new-pane", "-d", "-t", &window, "-x", "42", "-y", "12", "-X", "30", "-Y", "10",
+        ])
+        .unwrap();
+    let floats_before_zoom = client
+        .float_window(&window)
+        .unwrap()
+        .panes
+        .into_iter()
+        .filter(|p| p.floating)
+        .collect::<Vec<_>>();
+    assert_eq!(floats_before_zoom.len(), 2);
+    // Two tiled panes make preservation of the same zoomed slot observable.
+    client.run(&["split-window", "-d", "-t", &tiled]).unwrap();
+    client.select_pane(&tiled).unwrap();
+    client.toggle_zoom(&tiled).unwrap();
+    let before = client.float_window(&window).unwrap();
+    for original in &floats_before_zoom {
+        let hidden = before.panes.iter().find(|p| p.id == original.id).unwrap();
+        assert!(hidden.floating && !hidden.flags.contains('F'));
+        assert_eq!(
+            FloatGeometry::capture(hidden),
+            FloatGeometry::capture(original)
+        );
+        assert_eq!(hidden.z, original.z);
+    }
+    run_toggle(Some(&tiled), client).unwrap();
+    let after = client.float_window(&window).unwrap();
+    assert!(after.zoomed);
+    assert_eq!(after.panes.iter().find(|p| p.active).unwrap().id, tiled);
+    assert!(!after.panes.iter().any(|p| p.id == float));
+    let stash_window = client
+        .tree()
+        .unwrap()
+        .sessions
+        .into_iter()
+        .find(|s| s.name == "pmux")
+        .unwrap()
+        .windows
+        .into_iter()
+        .find(|w| client.option("-w", &w.id, "@pmux_source").unwrap() == window)
+        .unwrap()
+        .id;
+    let stashed = client.float_window(&stash_window).unwrap();
+    for original in &floats_before_zoom {
+        let pane = stashed.panes.iter().find(|p| p.id == original.id).unwrap();
+        assert_eq!(
+            FloatGeometry::capture(pane),
+            FloatGeometry::capture(original)
+        );
+        assert_eq!(pane.options["@pmux_z"], original.z.to_string());
+    }
+
+    // A stash containing only floats remains reusable after losing its label.
+    let placeholder = stashed
+        .panes
+        .iter()
+        .find(|p| !p.floating)
+        .unwrap()
+        .id
+        .clone();
+    client.kill_pane(&placeholder).unwrap();
+    client.toggle_zoom(&tiled).unwrap();
+    let second = client
+        .run(&[
+            "new-pane",
+            "-d",
+            "-t",
+            &window,
+            "-x",
+            "42",
+            "-y",
+            "12",
+            "-X",
+            "20",
+            "-Y",
+            "10",
+            "-P",
+            "-F",
+            "#{pane_id}",
+        ])
+        .unwrap()
+        .trim()
+        .to_owned();
+    let dummy_source = client
+        .new_dummy_float(&window, "20", "10", None, None)
+        .unwrap();
+    let dummy_stash = client
+        .new_dummy_float(&stash_window, "20", "10", None, None)
+        .unwrap();
+    run_stash(Some(&tiled), client).unwrap();
+    let stashed = client.float_window(&stash_window).unwrap();
+    assert_eq!(stashed.panes.len(), 3);
+    assert!(
+        stashed
+            .panes
+            .iter()
+            .all(|p| p.floating && p.title != "pane-mux-dummy")
+    );
+    assert!(stashed.panes.iter().any(|p| p.id == second));
+    let all = client.tree().unwrap();
+    assert!(
+        !all.sessions
+            .iter()
+            .flat_map(|s| &s.windows)
+            .flat_map(|w| &w.panes)
+            .any(|p| p.id == dummy_source || p.id == dummy_stash)
+    );
+    run_unstash(Some(&tiled), client).unwrap();
+    let after = client.float_window(&window).unwrap();
+    assert!(after.panes.iter().any(|p| p.id == float && p.floating));
+    assert!(after.panes.iter().any(|p| p.id == second && p.floating));
+    assert_eq!(after.panes.iter().filter(|p| p.floating).count(), 3);
+    assert!(
+        !client
+            .tree()
+            .unwrap()
+            .sessions
+            .iter()
+            .any(|s| s.name == "pmux")
+    );
+    // Stop loggers before removing their files.
+    client.kill_window(&window).unwrap();
 }
 
 fn floating_source_moves(client: &TmuxCli, source_session: &str) {
@@ -330,11 +663,19 @@ fn pane_moves(client: &TmuxCli, source_session: &str, floating_supported: bool) 
         result.unwrap();
     } else {
         let error = result.unwrap_err().to_string();
+        assert!(error.contains("tmux new-pane:"), "{error}");
+        // Unsupported floating fails before moving the source pane.
+        assert_eq!(client.resolve_pane(&pane).unwrap(), pane);
         assert!(
-            error.contains("tmux break-pane:") && error.contains("unknown flag -W"),
-            "{error}"
+            client
+                .tree()
+                .unwrap()
+                .sessions
+                .iter()
+                .flat_map(|s| &s.windows)
+                .any(|w| w.id == new_window && w.panes.iter().any(|p| p.id == pane))
         );
-        // join-pane already moved the pane; unsupported floating leaves it tiled.
+        return;
     }
     let tree = client.tree().unwrap();
     let windows = &tree

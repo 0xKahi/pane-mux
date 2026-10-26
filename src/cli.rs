@@ -20,6 +20,22 @@ pub enum Command {
     SwitchSession,
     /// Move a pane using a locked cut-and-paste picker.
     MovePane { target: Option<String> },
+    /// Stash or restore a window's floating panes (tmux 3.8).
+    Float {
+        #[command(subcommand)]
+        action: FloatAction,
+    },
+}
+
+/// Window-wide floating pane operations.
+#[derive(Debug, Subcommand)]
+pub enum FloatAction {
+    /// Stash all floating panes, including those hidden by zoom.
+    Stash { target: Option<String> },
+    /// Restore stashed floating panes.
+    Unstash { target: Option<String> },
+    /// Stash when any floats exist, otherwise unstash.
+    Toggle { target: Option<String> },
 }
 
 /// Optional output level; without a flag the focused column determines it.

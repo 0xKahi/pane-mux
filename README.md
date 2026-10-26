@@ -78,6 +78,7 @@ See [docs/configuration.md](docs/configuration.md) for picker settings, key bind
 - [`picker`](#pane-mux-picker---session--window--pane) - Pick a tmux target and print it to stdout
 - [`switch-session`](#pane-mux-switch-session) - Pick a tmux target and switch the current client to it
 - [`move-pane`](#pane-mux-move-pane-target) - Move a pane to a picked destination
+- [`float`](#pane-mux-float-stashunstashtoggle-target) - Stash or restore a window's floating panes
 
 For command help, run `pane-mux --help` or `pane-mux picker --help`.
 
@@ -154,11 +155,46 @@ pane-mux move-pane work:1.2
 
 Moves are detached, not followed by a client switch. Empty source windows and sessions close normally: moving the last pane of the attached session destroys it, and with `detach-on-destroy on` the client detaches and the popup closes. Floating paste requires tmux 3.8; other paste destinations do not.
 
+### `pane-mux float stash|unstash|toggle [TARGET]`
+
+Requires tmux 3.8. Each action affects the window containing `TARGET` (for example `work:1.2` or `%17`), or the current client's window when omitted. Omitting the target outside tmux, an unknown target, or targeting a stash window is an error (exit 2).
+
+- `stash`: Move all floating panes into the stash, keeping them floating at their original size and position. Tiled panes stay in place; new floats merge into an existing stash.
+- `unstash`: Restore all stashed floats with their saved size, position and stacking order, keeping any already-visible floats. If the source window changed size, geometry scales proportionally to fit.
+- `toggle`: Stash when any float exists (including floats hidden by zoom) in the window; otherwise unstash.
+
+Stashing an active float focuses the last-active tiled pane; unstashing refocuses the float that was active when stashed. Stash preserves zoom; unstash unzooms first. With nothing to stash or unstash, tmux displays a message and the command exits 0.
+
+#### Examples
+
+```tmux
+# ~/.tmux.conf
+bind f run-shell 'pane-mux float toggle'
+```
+
+```sh
+pane-mux float stash work:1.2
+pane-mux float unstash work:1.2
+```
+
+#### The stash session
+
+The first stash creates `pmux`, an ordinary tmux session tagged with `@pmux_stash=1`. It has one stash window per source window, named after the source `session:window`, with a tiled placeholder pane explaining how to restore. Source renaming or renumbering does not lose the stash. An existing, untagged `pmux` session is never reused: stash fails instead.
+
+`pmux` appears in the picker and `switch-session`. To list it last instead of ranking it by recency, add this to `config.toml` (it does not hide the session):
+
+```toml
+[switch-session]
+exclude_from_recency = ["pmux"]
+```
+
+Unstash removes the emptied stash window; restoring the last stash also removes `pmux`. If a source window is closed, its orphaned stash stays until you clean it up. Open the picker to kill the orphaned window or cut its panes with `x` and paste them elsewhere with `p`; see [picker actions](docs/picker-actions.md).
+
 ### Exit codes
 
 | Exit code | Meaning |
 | --- | --- |
-| 0 | Picked successfully (and switched for `switch-session`), or moved with `move-pane` |
+| 0 | Picked successfully (and switched for `switch-session`), moved with `move-pane`, or completed a `float` action (including nothing to stash/unstash) |
 | 130 | Cancelled without picking or pasting in `move-pane` |
 | 2 | Error or invalid command-line usage |
 
