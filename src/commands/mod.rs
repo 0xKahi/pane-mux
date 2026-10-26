@@ -1,5 +1,6 @@
 //! One module per subcommand.
 
+pub mod float;
 pub mod move_pane;
 pub mod picker;
 pub mod switch_session;

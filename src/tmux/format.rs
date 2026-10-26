@@ -81,6 +81,131 @@ fn parse_row(line: &str) -> Result<(&str, &str, Window, Pane, u64)> {
     Ok((fields[0], fields[1], window, pane, last_attached))
 }
 
+/// Pane-local metadata used by the stash, including recovery after a failed move.
+pub const FLOAT_OPTIONS: &[&str] = &[
+    "@pmux_x",
+    "@pmux_y",
+    "@pmux_w",
+    "@pmux_h",
+    "@pmux_z",
+    "@pmux_win_w",
+    "@pmux_win_h",
+    "@pmux_active",
+];
+
+/// Build the detailed query; each option is read from the pane, not its window.
+pub fn float_format() -> String {
+    let mut format = "#{window_width}\t#{window_height}\t#{window_zoomed_flag}\t#{pane_id}\t#{pane_floating_flag}\t#{pane_active}\t#{pane_z}\t#{pane_width}\t#{pane_height}\t#{pane_left}\t#{pane_top}".to_owned();
+    for option in FLOAT_OPTIONS {
+        format.push_str(&format!("\t#{{{option}}}"));
+    }
+    // Title must be last: splitn below preserves embedded tabs.
+    format.push_str("\t#{pane_flags}\t#{pane_title}");
+    format
+}
+
+/// Parse a window's detailed pane snapshot (empty flags support older tmux).
+pub fn parse_float_window(output: &str) -> Result<super::model::FloatWindow> {
+    use super::model::{FloatPane, FloatWindow};
+    let mut window = FloatWindow::default();
+    for line in output.lines() {
+        let f: Vec<_> = line.splitn(13 + FLOAT_OPTIONS.len(), '\t').collect();
+        ensure!(
+            f.len() == 13 + FLOAT_OPTIONS.len(),
+            "invalid float pane row"
+        );
+        let number = |i: usize| -> Result<i32> {
+            if f[i].is_empty() {
+                Ok(0)
+            } else {
+                f[i].parse().context("invalid float geometry")
+            }
+        };
+        window.width = number(0)?;
+        window.height = number(1)?;
+        window.zoomed = parse_active(f[2])?;
+        ensure!(f[3].starts_with('%'), "invalid pane id");
+        window.panes.push(FloatPane {
+            id: f[3].into(),
+            flags: f[11 + FLOAT_OPTIONS.len()].into(),
+            title: f[12 + FLOAT_OPTIONS.len()].into(),
+            floating: !f[4].is_empty() && parse_active(f[4])?,
+            active: parse_active(f[5])?,
+            z: number(6)?,
+            width: number(7)?,
+            height: number(8)?,
+            left: number(9)?,
+            top: number(10)?,
+            options: FLOAT_OPTIONS
+                .iter()
+                .zip(&f[11..11 + FLOAT_OPTIONS.len()])
+                .filter(|(_, v)| !v.is_empty())
+                .map(|(k, v)| ((*k).into(), (*v).into()))
+                .collect(),
+        });
+    }
+    Ok(window)
+}
+
+/// Float leaves from window_layout, using inner (pane-format) coordinates.
+/// Scan every leaf, independent of the surrounding split/container nesting.
+pub fn parse_layout_floats(layout: &str) -> Result<Vec<super::model::FloatPane>> {
+    use super::model::FloatPane;
+    let mut floats = Vec::new();
+    for tail in layout.split("{\"t\":\"p\"").skip(1) {
+        let (leaf, _) = tail.split_once('}').context("unterminated layout leaf")?;
+        ensure!(!leaf.contains('{'), "invalid layout leaf");
+        let fields: std::collections::HashMap<_, _> = leaf
+            .split(',')
+            .filter_map(|field| field.split_once(':'))
+            .map(|(key, value)| (key.trim().trim_matches('"'), value.trim()))
+            .collect();
+        if !fields.contains_key("z") {
+            continue;
+        }
+        let number = |key: &str| -> Result<i32> {
+            fields
+                .get(key)
+                .context("missing layout geometry")?
+                .parse()
+                .context("invalid layout geometry")
+        };
+        let id = fields
+            .get("I")
+            .context("missing layout pane id")?
+            .trim_matches('"');
+        ensure!(id.starts_with('%'), "invalid layout pane id");
+        floats.push(FloatPane {
+            id: id.into(),
+            floating: true,
+            width: number("w")?,
+            height: number("h")?,
+            left: number("x")?,
+            top: number("y")?,
+            z: number("z")?,
+            ..Default::default()
+        });
+    }
+    Ok(floats)
+}
+
+/// Hidden floats misreport both membership and z while a window is zoomed.
+pub fn apply_layout_floats(window: &mut super::model::FloatWindow, layout: &str) -> Result<()> {
+    let floats = parse_layout_floats(layout)?;
+    for pane in &mut window.panes {
+        let entry = floats.iter().find(|entry| entry.id == pane.id);
+        pane.floating = entry.is_some();
+        if let Some(entry) = entry {
+            pane.z = entry.z;
+            pane.width = entry.width;
+            pane.height = entry.height;
+            pane.left = entry.left;
+            pane.top = entry.top;
+        }
+    }
+    Ok(())
+}
+
 fn parse_active(value: &str) -> Result<bool> {
     ensure!(value == "0" || value == "1", "invalid active flag: {value}");
     Ok(value == "1")
@@ -130,6 +255,78 @@ mod tests {
             assert!(message.contains("row 1"));
             assert!(message.contains("invalid active flag"));
         }
+    }
+
+    #[test]
+    fn detailed_float_rows_and_missing_options() {
+        let empty = "\t".repeat(FLOAT_OPTIONS.len());
+        let w = parse_float_window(&format!(
+            "200\t50\t0\t%1\t\t1\t\t60\t15\t120\t5{empty}\t\t\n"
+        ))
+        .unwrap();
+        assert!(!w.panes[0].floating);
+        assert!(w.panes[0].options.is_empty());
+        let options = ["119", "4", "62", "17", "2", "200", "50", "1"].join("\t");
+        let w = parse_float_window(&format!(
+            "200\t50\t1\t%2\t1\t0\t2\t60\t15\t120\t5\t{options}\tFA\ttitle\twith tabs\n"
+        ))
+        .unwrap();
+        assert!(w.zoomed && w.panes[0].floating);
+        assert_eq!(w.panes[0].z, 2);
+        assert_eq!(w.panes[0].title, "title\twith tabs");
+        assert_eq!(w.panes[0].flags, "FA");
+        assert_eq!(w.panes[0].options["@pmux_w"], "62");
+        assert!(parse_float_window("bad").is_err());
+    }
+
+    #[test]
+    fn nested_layout_leaves_use_inner_geometry_and_only_z_marks_floats() {
+        let layout = r#"{"V":2,"L":{"t":"v","w":200,"h":50,"x":0,"y":0,"c":[{"t":"h","w":200,"h":50,"x":0,"y":0,"c":[{"t":"p","w":100,"h":50,"x":0,"y":0,"i":0,"a":true,"I":"%0"},{"t":"p","w":99,"h":50,"x":101,"y":0,"i":1,"I":"%2"}]},{"t":"p","w":60,"h":15,"x":120,"y":5,"i":3,"z":0,"I":"%1"}]}}"#;
+        let floats = parse_layout_floats(layout).unwrap();
+        assert_eq!(floats.len(), 1);
+        assert_eq!(floats[0].id, "%1");
+        assert_eq!(
+            (
+                floats[0].width,
+                floats[0].height,
+                floats[0].left,
+                floats[0].top,
+                floats[0].z
+            ),
+            (60, 15, 120, 5, 0)
+        );
+    }
+
+    #[test]
+    fn zoomed_layout_overrides_membership_geometry_and_bogus_z() {
+        let layout = r#"{"V":2,"L":{"t":"v","w":200,"h":50,"x":0,"y":0,"c":[{"t":"p","w":200,"h":50,"x":0,"y":0,"i":0,"a":true,"I":"%0"},{"t":"p","w":60,"h":15,"x":120,"y":5,"i":1,"z":1,"I":"%1"},{"t":"p","w":38,"h":10,"x":10,"y":8,"i":2,"z":0,"I":"%2"}]}}"#;
+        let mut window = super::super::model::FloatWindow {
+            zoomed: true,
+            panes: vec![
+                super::super::model::FloatPane {
+                    id: "%1".into(),
+                    z: 2,
+                    title: "keep".into(),
+                    ..Default::default()
+                },
+                super::super::model::FloatPane {
+                    id: "%0".into(),
+                    floating: true,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        apply_layout_floats(&mut window, layout).unwrap();
+        let pane = &window.panes[0];
+        assert!(pane.floating);
+        assert_eq!(
+            (pane.z, pane.width, pane.height, pane.left, pane.top),
+            (1, 60, 15, 120, 5)
+        );
+        assert_eq!(pane.title, "keep");
+        assert!(!window.panes[1].floating);
+        assert!(parse_layout_floats(r#"{"t":"p","z":0}"#).is_err());
     }
 
     #[test]

@@ -9,7 +9,7 @@ homepage = "https://github.com/0xKahi/pane-mux"
 readme = "README.md"
 keywords = ["tmux", "picker", "tui", "terminal", "cli"]
 categories = ["command-line-utilities"]
-rust-version = "1.88"
+rust-version = "1.89"
 include = ["src/**/*", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE", "CHANGELOG.md"]
 
 [dependencies]

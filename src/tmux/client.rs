@@ -8,6 +8,34 @@ use super::{Current, Tree, format};
 
 /// Operations needed by the picker; ids are used for mutations.
 pub trait Tmux {
+    fn float_window(&self, window: &str) -> Result<super::model::FloatWindow>;
+    fn window_layout(&self, window: &str) -> Result<String>;
+    /// Sizes accept cells or percentages; positions are border-inclusive.
+    fn new_dummy_float(
+        &self,
+        window: &str,
+        width: &str,
+        height: &str,
+        x: Option<i32>,
+        y: Option<i32>,
+    ) -> Result<String>;
+    fn swap_and_kill(&self, pane: &str, dummy: &str) -> Result<()>;
+    /// Scope is "session", "-w" (window), or "-p" (pane).
+    fn set_option(&self, scope: &str, target: &str, name: &str, value: &str) -> Result<()>;
+    fn option(&self, scope: &str, target: &str, name: &str) -> Result<String>;
+    fn resize_window(&self, window: &str, width: i32, height: i32) -> Result<()>;
+    fn toggle_zoom(&self, pane: &str) -> Result<()>;
+    fn select_pane(&self, pane: &str) -> Result<()>;
+    fn display_message(&self, target: &str, message: &str) -> Result<()>;
+    fn stash_window(
+        &self,
+        session: Option<&str>,
+        name: &str,
+        command: &str,
+        width: i32,
+        height: i32,
+    ) -> Result<String>;
+    fn socket_path(&self) -> Result<String>;
     fn tree(&self) -> Result<Tree>;
     fn capture(&self, pane_id: &str) -> Result<String>;
     fn current(&self) -> Result<Option<Current>>;
@@ -99,6 +127,169 @@ impl TmuxCli {
 }
 
 impl Tmux for TmuxCli {
+    fn float_window(&self, window: &str) -> Result<super::model::FloatWindow> {
+        let mut snapshot = format::parse_float_window(&self.run(&[
+            "list-panes",
+            "-t",
+            window,
+            "-F",
+            &format::float_format(),
+        ])?)?;
+        if snapshot.zoomed {
+            format::apply_layout_floats(&mut snapshot, &self.window_layout(window)?)?;
+        }
+        Ok(snapshot)
+    }
+
+    fn window_layout(&self, window: &str) -> Result<String> {
+        self.run(&["display-message", "-p", "-t", window, "#{window_layout}"])
+    }
+
+    fn new_dummy_float(
+        &self,
+        window: &str,
+        width: &str,
+        height: &str,
+        x: Option<i32>,
+        y: Option<i32>,
+    ) -> Result<String> {
+        let mut args = vec![
+            "new-pane",
+            "-d",
+            "-A",
+            "-E",
+            "-T",
+            "pane-mux-dummy",
+            "-t",
+            window,
+            "-x",
+            width,
+            "-y",
+            height,
+        ];
+        let x = x.map(|v| v.to_string());
+        let y = y.map(|v| v.to_string());
+        if let Some(x) = &x {
+            args.extend(["-X", x]);
+        }
+        if let Some(y) = &y {
+            args.extend(["-Y", y]);
+        }
+        args.extend(["-P", "-F", "#{pane_id}"]);
+        Ok(self.run(&args)?.trim().into())
+    }
+
+    fn swap_and_kill(&self, pane: &str, dummy: &str) -> Result<()> {
+        self.run(&[
+            "swap-pane",
+            "-d",
+            "-Z",
+            "-s",
+            pane,
+            "-t",
+            dummy,
+            ";",
+            "kill-pane",
+            "-t",
+            dummy,
+        ])
+        .map(|_| ())
+    }
+
+    fn set_option(&self, scope: &str, target: &str, name: &str, value: &str) -> Result<()> {
+        let mut args = vec!["set-option"];
+        if scope != "session" {
+            args.push(scope);
+        }
+        args.extend(["-t", target, name, value]);
+        self.run(&args).map(|_| ())
+    }
+
+    fn option(&self, scope: &str, target: &str, name: &str) -> Result<String> {
+        let mut args = vec!["show-options"];
+        if scope != "session" {
+            args.push(scope);
+        }
+        args.extend(["-qv", "-t", target, name]);
+        Ok(self.run(&args)?.trim_end().into())
+    }
+
+    fn resize_window(&self, window: &str, width: i32, height: i32) -> Result<()> {
+        self.run(&[
+            "resize-window",
+            "-t",
+            window,
+            "-x",
+            &width.to_string(),
+            "-y",
+            &height.to_string(),
+        ])
+        .map(|_| ())
+    }
+
+    fn toggle_zoom(&self, pane: &str) -> Result<()> {
+        self.run(&["resize-pane", "-Z", "-t", pane]).map(|_| ())
+    }
+
+    fn select_pane(&self, pane: &str) -> Result<()> {
+        self.run(&["select-pane", "-t", pane]).map(|_| ())
+    }
+
+    fn display_message(&self, target: &str, message: &str) -> Result<()> {
+        self.run(&["display-message", "-t", target, message])
+            .map(|_| ())
+    }
+
+    fn stash_window(
+        &self,
+        session: Option<&str>,
+        name: &str,
+        command: &str,
+        width: i32,
+        height: i32,
+    ) -> Result<String> {
+        let output = if let Some(session) = session {
+            self.run(&[
+                "new-window",
+                "-d",
+                "-P",
+                "-F",
+                "#{window_id}",
+                "-t",
+                &format!("{session}:"),
+                "-n",
+                name,
+                command,
+            ])?
+        } else {
+            self.run(&[
+                "new-session",
+                "-d",
+                "-P",
+                "-F",
+                "#{window_id}",
+                "-s",
+                "pmux",
+                "-x",
+                &width.to_string(),
+                "-y",
+                &height.to_string(),
+                "-n",
+                name,
+                command,
+            ])?
+        };
+        let window = output.trim().to_owned();
+        self.resize_window(&window, width, height)?;
+        Ok(window)
+    }
+
+    fn socket_path(&self) -> Result<String> {
+        Ok(self
+            .run(&["display-message", "-p", "#{socket_path}"])?
+            .trim()
+            .into())
+    }
     fn tree(&self) -> Result<Tree> {
         format::parse_tree(&self.run(&["list-panes", "-a", "-F", format::PANE_FORMAT])?)
     }
@@ -177,26 +368,27 @@ impl Tmux for TmuxCli {
         window_id: &str,
         floating: &crate::config::settings::FloatingPaneConfig,
     ) -> Result<()> {
-        self.run(&["join-pane", "-d", "-s", pane_id, "-t", window_id])?;
-        self.run(&[
-            "break-pane",
-            "-W",
-            "-d",
-            "-s",
-            pane_id,
-            "-x",
+        let dummy = self.new_dummy_float(
+            window_id,
             &format!("{}%", floating.width),
-            "-y",
             &format!("{}%", floating.height),
-        ])?;
-        self.run(&[
-            "move-pane",
-            "-P",
-            &floating.position.to_string(),
-            "-t",
-            pane_id,
-        ])?;
-        Ok(())
+            None,
+            None,
+        )?;
+        let result = (|| {
+            self.run(&[
+                "move-pane",
+                "-P",
+                &floating.position.to_string(),
+                "-t",
+                &dummy,
+            ])?;
+            self.swap_and_kill(pane_id, &dummy)
+        })();
+        if result.is_err() {
+            let _ = self.kill_pane(&dummy);
+        }
+        result
     }
 
     fn new_session(&self, name: Option<&str>) -> Result<String> {
