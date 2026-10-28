@@ -144,7 +144,9 @@ Theme sections and style keys:
 - `[help]`: `border`, `title`, `on`, `run`, `desc`, `hovered`
 - `[notify]`: `error`
 
-`[icons]` has `session`, `window`, and `pane` tables with `text` and optional `fg`. Override just `text` to preserve the preset colour. Empty text hides an icon. Default glyphs require a Nerd Font; plain text alternatives work too.
+`[icons]` has `session`, `window`, `pane`, `stashed`, and `copy_mode` tables with `text` and optional `fg`. Override just `text` to preserve the preset colour. Empty text hides an icon or indicator without leaving a gap. Default glyphs require a Nerd Font; plain text alternatives work too.
+
+`stashed` follows window names when floats are stashed, replacing `$count` in its text with the number of stashed floats (default `"\U000F09A4 $count"`, `lightcyan`). Text without `$count`, such as `"S"`, hides the number. `copy_mode` follows pane names in copy or view mode (default `"\U000F18F1"`, `lightyellow`). Both indicators appear after two spaces and before any find badge; they retain their own colours except on rows filled by a background or reversal.
 
 `[indicator] padding` sets the hovered-row caps (defaults `"\uE0B6"` and `"\uE0B4"`, matching yazi). Either side can be overridden independently. Caps use the highlight colour against the terminal background; styles without a background or reversal use spaces instead. `active` sets the current-item marker (default `*`, magenta) and accepts the same style fields listed above. Non-current rows reserve the marker's display width. Names are not restyled for current items.
 
@@ -196,7 +198,7 @@ The complete, authoritative defaults are:
 - [keymap-default.toml](../src/config/preset/keymap-default.toml)
 - [theme-default.toml](../src/config/preset/theme-default.toml)
 
-The floating-pane and cut-marker defaults are:
+The floating-pane, cut-marker, and row-indicator defaults are:
 
 <!-- config.toml -->
 ```toml
@@ -216,6 +218,10 @@ position = "centre"
 cut = { fg = "lightred", bg = "lightred" }
 symbol = "│"
 badge_cut = { fg = "white", bg = "red" }
+
+[icons]
+stashed = { text = "\U000F09A4 $count", fg = "lightcyan" }
+copy_mode = { text = "\U000F18F1", fg = "lightyellow" }
 ```
 
 Debug builds read these preset files from the source tree at runtime. Release builds embed them in the binary, so the source tree is not needed.

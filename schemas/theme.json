@@ -111,7 +111,7 @@
     },
     "Icon": {
       "additionalProperties": false,
-      "description": "Glyph and colour for a tree level. Empty text deliberately hides the icon.",
+      "description": "Glyph and colour for a tree level or row indicator. Empty text hides it.",
       "properties": {
         "fg": {
           "anyOf": [
@@ -131,12 +131,18 @@
     },
     "Icons": {
       "additionalProperties": false,
-      "description": "Icons for the three tmux tree levels.",
+      "description": "Icons for tmux tree levels and row indicators.",
       "properties": {
+        "copy_mode": {
+          "$ref": "#/definitions/Icon"
+        },
         "pane": {
           "$ref": "#/definitions/Icon"
         },
         "session": {
+          "$ref": "#/definitions/Icon"
+        },
+        "stashed": {
           "$ref": "#/definitions/Icon"
         },
         "window": {

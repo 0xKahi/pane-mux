@@ -34,6 +34,8 @@ title = { fg = "lightcyan" }
 session = { text = "\uF489", fg = "#82AAFF" }
 window = { text = "\U000F10AC", fg = "lightcyan" }
 pane = { text = "\uEBC8", fg = "lightgreen" }
+stashed = { text = "\U000F09A4 $count", fg = "lightcyan" }
+copy_mode = { text = "\U000F18F1", fg = "lightyellow" }
 
 [mode]
 normal = { bg = "blue", fg = "#1b1d2b", bold = true }

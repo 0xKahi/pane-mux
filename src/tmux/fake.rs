@@ -150,11 +150,13 @@ impl FakeTmux {
             name: name.unwrap_or("shell").into(),
             active,
             zoomed: false,
+            stash_source: None,
             panes: vec![Pane {
                 id: self.fresh_id("%"),
                 index: 0,
                 active: true,
                 command: "sh".into(),
+                mode: String::new(),
                 floating: false,
             }],
         }
@@ -517,7 +519,20 @@ impl Tmux for FakeTmux {
     }
     fn tree(&self) -> Result<Tree> {
         self.record("tree".into())?;
-        Ok(self.tree.borrow().clone())
+        let mut tree = self.tree.borrow().clone();
+        let options = self.options.borrow();
+        for session in &mut tree.sessions {
+            session.stash = options
+                .get(&("session".into(), session.id.clone(), "@pmux_stash".into()))
+                .is_some_and(|value| value == "1");
+            for window in &mut session.windows {
+                window.stash_source = options
+                    .get(&("-w".into(), window.id.clone(), "@pmux_source".into()))
+                    .filter(|value| !value.is_empty())
+                    .cloned();
+            }
+        }
+        Ok(tree)
     }
 
     fn capture(&self, pane_id: &str) -> Result<String> {
@@ -587,12 +602,14 @@ impl Tmux for FakeTmux {
                 .map(String::from)
                 .unwrap_or_else(|| session_id[1..].into()),
             last_attached: 0,
+            stash: false,
             windows: vec![Window {
                 id: window_id.clone(),
                 index: 0,
                 name: window_name.unwrap_or(&default_name).into(),
                 active: true,
                 zoomed: false,
+                stash_source: None,
                 panes: vec![pane],
             }],
         });
@@ -640,6 +657,7 @@ impl Tmux for FakeTmux {
             name: name.unwrap_or(&default_name).into(),
             active: false,
             zoomed: false,
+            stash_source: None,
             panes: vec![pane],
         });
         Self::prune(&mut tree);
@@ -708,6 +726,7 @@ impl Tmux for FakeTmux {
             id: id.clone(),
             name,
             last_attached: 0,
+            stash: false,
             windows: vec![self.window(0, None, true)],
         });
         Ok(id)
@@ -868,17 +887,20 @@ pub fn sample_tree(names: &[&str]) -> Tree {
                 id: format!("${index}"),
                 name: (*name).into(),
                 last_attached: 0,
+                stash: false,
                 windows: vec![Window {
                     id: format!("@{index}"),
                     index: 0,
                     name: "shell".into(),
                     active: true,
                     zoomed: false,
+                    stash_source: None,
                     panes: vec![Pane {
                         id: format!("%{index}"),
                         index: 0,
                         active: true,
                         command: "sh".into(),
+                        mode: String::new(),
                         floating: false,
                     }],
                 }],
@@ -890,6 +912,15 @@ pub fn sample_tree(names: &[&str]) -> Tree {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stash_command_overlays_snapshot_options() {
+        let fake = FakeTmux::new(sample_tree(&["work", "temp"]));
+        fake.float_pane_in_window("%1", "@0", &floating_config())
+            .unwrap();
+        crate::commands::float::run_stash(Some("%0"), &fake).unwrap();
+        assert_eq!(fake.tree().unwrap().stash_counts().get("@0"), Some(&1));
+    }
 
     fn floating_config() -> crate::config::settings::FloatingPaneConfig {
         crate::config::settings::FloatingPaneConfig {

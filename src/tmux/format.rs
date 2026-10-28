@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use super::model::{Pane, Session, Tree, Window};
 
 /// One row per pane; tabs preserve spaces in names and commands.
-pub const PANE_FORMAT: &str = "#{session_id}\t#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_current_command}\t#{session_last_attached}\t#{window_zoomed_flag}\t#{pane_floating_flag}";
+pub const PANE_FORMAT: &str = "#{session_id}\t#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_current_command}\t#{session_last_attached}\t#{window_zoomed_flag}\t#{pane_floating_flag}\t#{pane_mode}\t#{@pmux_stash}\t#{@pmux_source}";
 
 /// Parse a snapshot, preserving the first-seen session/window/pane order.
 pub fn parse_tree(output: &str) -> Result<Tree> {
@@ -22,6 +22,7 @@ pub fn parse_tree(output: &str) -> Result<Tree> {
                     id: row.0.into(),
                     name: row.1.into(),
                     last_attached: row.4,
+                    stash: row.5,
                     windows: Vec::new(),
                 });
                 tree.sessions.len() - 1
@@ -40,11 +41,11 @@ pub fn parse_tree(output: &str) -> Result<Tree> {
     Ok(tree)
 }
 
-fn parse_row(line: &str) -> Result<(&str, &str, Window, Pane, u64)> {
+fn parse_row(line: &str) -> Result<(&str, &str, Window, Pane, u64, bool)> {
     let fields: Vec<&str> = line.split('\t').collect();
     ensure!(
-        fields.len() == 13,
-        "expected 13 tab-separated fields, got {}",
+        fields.len() == 16,
+        "expected 16 tab-separated fields, got {}",
         fields.len()
     );
     ensure!(
@@ -57,6 +58,7 @@ fn parse_row(line: &str) -> Result<(&str, &str, Window, Pane, u64)> {
         name: fields[4].into(),
         active: parse_active(fields[5])?,
         zoomed: parse_active(fields[11])?,
+        stash_source: (!fields[15].is_empty()).then(|| fields[15].into()),
         panes: Vec::new(),
     };
     let pane = Pane {
@@ -64,6 +66,7 @@ fn parse_row(line: &str) -> Result<(&str, &str, Window, Pane, u64)> {
         index: fields[7].parse().context("invalid pane index")?,
         active: parse_active(fields[8])?,
         command: fields[9].into(),
+        mode: fields[13].into(),
         // Older tmux versions expand the unsupported floating flag to empty.
         floating: if fields[12].is_empty() {
             false
@@ -78,7 +81,14 @@ fn parse_row(line: &str) -> Result<(&str, &str, Window, Pane, u64)> {
             .parse()
             .context("invalid session last attached")?
     };
-    Ok((fields[0], fields[1], window, pane, last_attached))
+    Ok((
+        fields[0],
+        fields[1],
+        window,
+        pane,
+        last_attached,
+        fields[14] == "1",
+    ))
 }
 
 /// Pane-local metadata used by the stash, including recovery after a failed move.
@@ -217,10 +227,14 @@ mod tests {
 
     #[test]
     fn groups_multiple_sessions_and_preserves_order_and_spaces() {
-        let tree = parse_tree("$3\twork space\t@5\t1\tmy editor\t1\t%12\t0\t1\tnvim\t100\t1\t0\n$3\twork space\t@5\t1\tmy editor\t1\t%13\t1\t0\tzsh\t200\t1\t1\n$8\tnotes\t@9\t0\tlogs\t1\t%20\t0\t1\ttail\t\t0\t\n$3\twork space\t@6\t2\tshell\t0\t%14\t0\t1\tzsh\t300\t0\t0\n").unwrap();
+        let tree = parse_tree("$3\twork space\t@5\t1\tmy editor\t1\t%12\t0\t1\tnvim\t100\t1\t0\t\t\t\n$3\twork space\t@5\t1\tmy editor\t1\t%13\t1\t0\tzsh\t200\t1\t1\tcopy-mode\t1\t@3\n$8\tnotes\t@9\t0\tlogs\t1\t%20\t0\t1\ttail\t\t0\t\t\t\t\n$3\twork space\t@6\t2\tshell\t0\t%14\t0\t1\tzsh\t300\t0\t0\t\t\t\n").unwrap();
         assert_eq!(tree.sessions.len(), 2);
         assert!(tree.sessions[0].windows[0].zoomed);
         assert!(tree.sessions[0].windows[0].panes[1].floating);
+        assert!(tree.sessions[0].windows[0].panes[1].in_copy_mode());
+        assert!(tree.sessions[0].windows[0].panes[0].mode.is_empty());
+        assert!(!tree.sessions[0].stash);
+        assert!(tree.sessions[0].windows[0].stash_source.is_none());
         assert!(!tree.sessions[1].windows[0].panes[0].floating);
         assert_eq!(tree.sessions[0].last_attached, 100);
         assert_eq!(tree.sessions[1].last_attached, 0);
@@ -232,6 +246,17 @@ mod tests {
     }
 
     #[test]
+    fn parses_stash_metadata_and_raw_mode() {
+        let tree =
+            parse_tree("$1\tpmux\t@2\t0\tstash\t1\t%3\t0\t1\tsh\t0\t0\t1\tview-mode\t1\t@9\n")
+                .unwrap();
+        let session = &tree.sessions[0];
+        assert!(session.stash);
+        assert_eq!(session.windows[0].stash_source.as_deref(), Some("@9"));
+        assert_eq!(session.windows[0].panes[0].mode, "view-mode");
+    }
+
+    #[test]
     fn malformed_line_reports_row() {
         let error = parse_tree("not a pane").unwrap_err();
         assert!(format!("{error:#}").contains("row 1"));
@@ -240,7 +265,8 @@ mod tests {
 
     #[test]
     fn invalid_last_attached_reports_row() {
-        let error = parse_tree("$0\tx\t@0\t0\tx\t1\t%0\t0\t1\tsh\tinvalid\t0\t0").unwrap_err();
+        let error =
+            parse_tree("$0\tx\t@0\t0\tx\t1\t%0\t0\t1\tsh\tinvalid\t0\t0\t\t\t").unwrap_err();
         let message = format!("{error:#}");
         assert!(message.contains("row 1"));
         assert!(message.contains("invalid session last attached"));
@@ -249,8 +275,10 @@ mod tests {
     #[test]
     fn invalid_zoomed_or_floating_flags_report_row() {
         for flags in ["bad\t0", "0\tbad"] {
-            let error =
-                parse_tree(&format!("$0\tx\t@0\t0\tx\t1\t%0\t0\t1\tsh\t0\t{flags}")).unwrap_err();
+            let error = parse_tree(&format!(
+                "$0\tx\t@0\t0\tx\t1\t%0\t0\t1\tsh\t0\t{flags}\t\t\t"
+            ))
+            .unwrap_err();
             let message = format!("{error:#}");
             assert!(message.contains("row 1"));
             assert!(message.contains("invalid active flag"));

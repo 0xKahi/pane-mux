@@ -13,12 +13,14 @@ fn fixture() -> FakeTmux {
         name: "editor".into(),
         active: true,
         zoomed: false,
+        stash_source: None,
         panes: vec![
             Pane {
                 id: "%10".into(),
                 index: 0,
                 active: true,
                 command: "nvim".into(),
+                mode: String::new(),
                 floating: false,
             },
             Pane {
@@ -26,6 +28,7 @@ fn fixture() -> FakeTmux {
                 index: 2,
                 active: false,
                 command: "sh".into(),
+                mode: String::new(),
                 floating: false,
             },
         ],
@@ -36,11 +39,13 @@ fn fixture() -> FakeTmux {
         name: "logs".into(),
         active: false,
         zoomed: false,
+        stash_source: None,
         panes: vec![Pane {
             id: "%20".into(),
             index: 0,
             active: true,
             command: "tail".into(),
+            mode: String::new(),
             floating: false,
         }],
     });
@@ -75,6 +80,31 @@ fn type_text(state: &mut State, fake: &FakeTmux, text: &str) {
 fn find(state: &mut State, fake: &FakeTmux, query: &str, previous: bool, case: Case) {
     state.apply(&Action::Find { previous, case }, fake);
     type_text(state, fake, query);
+}
+
+#[test]
+fn stash_counts_load_and_refresh_from_fake_options() {
+    let mut tree = sample_tree(&["work", "pmux"]);
+    tree.sessions[1].windows[0].panes[0].floating = true;
+    let source = tree.sessions[0].windows[0].id.clone();
+    let stash_session = tree.sessions[1].id.clone();
+    let stash_window = tree.sessions[1].windows[0].id.clone();
+    let fake = FakeTmux::new(tree);
+    fake.set_option("session", &stash_session, "@pmux_stash", "1")
+        .unwrap();
+    fake.set_option("-w", &stash_window, "@pmux_source", &source)
+        .unwrap();
+    let mut state = state(&fake);
+    assert_eq!(state.stash_counts.get(&source), Some(&1));
+    fake.set_option("-w", &stash_window, "@pmux_source", "@renamed")
+        .unwrap();
+    assert!(state.refresh(&fake).unwrap());
+    assert!(!state.stash_counts.contains_key(&source));
+    assert_eq!(state.stash_counts.get("@renamed"), Some(&1));
+    fake.set_option("session", &stash_session, "@pmux_stash", "0")
+        .unwrap();
+    assert!(state.refresh(&fake).unwrap());
+    assert!(state.stash_counts.is_empty());
 }
 
 #[test]
@@ -258,6 +288,7 @@ fn finder_follows_focus_after_h_and_l() {
         name: "blog".into(),
         active: false,
         zoomed: false,
+        stash_source: None,
         panes: vec![],
     });
     let fake = FakeTmux::new(tree);
