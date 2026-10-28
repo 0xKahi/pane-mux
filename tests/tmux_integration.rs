@@ -164,7 +164,9 @@ fn float_stash_round_trip(client: &TmuxCli, session: &str) {
     pane_mux::commands::float::run_stash(Some(&tiled), client).unwrap();
     assert_eq!(client.float_window(&window).unwrap().panes.len(), 1);
     let tree = client.tree().unwrap();
+    assert_eq!(tree.stash_counts().get(&window), Some(&2));
     let stash = tree.sessions.iter().find(|s| s.name == "pmux").unwrap();
+    assert!(stash.stash);
     let stash_window = stash
         .windows
         .iter()
@@ -178,6 +180,19 @@ fn float_stash_round_trip(client: &TmuxCli, session: &str) {
         assert!(p.floating);
         assert_eq!(FloatGeometry::capture(p), *g);
     }
+    client.run(&["copy-mode", "-t", &tiled]).unwrap();
+    let tree = client.tree().unwrap();
+    let pane = tree
+        .sessions
+        .iter()
+        .flat_map(|s| &s.windows)
+        .flat_map(|w| &w.panes)
+        .find(|p| p.id == tiled)
+        .unwrap();
+    assert!(pane.in_copy_mode());
+    client
+        .run(&["send-keys", "-t", &tiled, "-X", "cancel"])
+        .unwrap();
     // Stash resizing must not change the restore metadata.
     client.resize_window(&stash_window.id, 100, 30).unwrap();
     pane_mux::commands::float::run_unstash(Some(&tiled), client).unwrap();
@@ -384,6 +399,7 @@ fn float_swap_regressions(client: &TmuxCli, session: &str) {
         .id
         .clone();
     client.kill_pane(&placeholder).unwrap();
+    assert_eq!(client.tree().unwrap().stash_counts().get(&window), Some(&2));
     client.toggle_zoom(&tiled).unwrap();
     let second = client
         .run(&[

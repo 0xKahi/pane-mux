@@ -18,17 +18,49 @@ pub(super) fn render(frame: &mut Frame, areas: [Rect; 3], state: &State, theme: 
     let sessions = state
         .sessions()
         .iter()
-        .map(|s| (s.id.clone(), String::new(), s.name.as_str()))
+        .map(|s| (s.id.clone(), String::new(), s.name.as_str(), None))
         .collect();
     let windows = state
         .windows()
         .iter()
-        .map(|w| (w.id.clone(), format!("{}: ", w.index), w.name.as_str()))
+        .map(|w| {
+            let indicator = state
+                .stash_counts
+                .get(&w.id)
+                .filter(|&&count| count > 0)
+                .and_then(|count| {
+                    row_indicator(
+                        &theme.icons.stashed,
+                        theme
+                            .icons
+                            .stashed
+                            .text
+                            .replace("$count", &count.to_string()),
+                    )
+                });
+            (
+                w.id.clone(),
+                format!("{}: ", w.index),
+                w.name.as_str(),
+                indicator,
+            )
+        })
         .collect();
     let panes = state
         .panes()
         .iter()
-        .map(|p| (p.id.clone(), format!("{}: ", p.index), p.command.as_str()))
+        .map(|p| {
+            let indicator = p
+                .in_copy_mode()
+                .then(|| row_indicator(&theme.icons.copy_mode, theme.icons.copy_mode.text.clone()))
+                .flatten();
+            (
+                p.id.clone(),
+                format!("{}: ", p.index),
+                p.command.as_str(),
+                indicator,
+            )
+        })
         .collect();
     for (area, level, icon, rows) in [
         (areas[0], Level::Session, &theme.icons.session, sessions),
@@ -39,6 +71,15 @@ pub(super) fn render(frame: &mut Frame, areas: [Rect; 3], state: &State, theme: 
     }
 }
 
+fn row_indicator(icon: &Icon, text: String) -> Option<Span<'static>> {
+    (!text.is_empty()).then(|| {
+        Span::styled(
+            format!("  {text}"),
+            Style::default().fg(icon.fg.unwrap_or(Color::Reset)),
+        )
+    })
+}
+
 fn column(
     frame: &mut Frame,
     area: Rect,
@@ -46,7 +87,7 @@ fn column(
     theme: &Theme,
     level: Level,
     icon: &Icon,
-    rows: Vec<(String, String, &str)>,
+    rows: Vec<(String, String, &str, Option<Span<'static>>)>,
 ) {
     let (title, selected) = match level {
         Level::Session => ("Sessions", state.session.as_deref()),
@@ -60,7 +101,7 @@ fn column(
     frame.render_widget(block, area);
     let selection = rows
         .iter()
-        .position(|(id, _, _)| Some(id.as_str()) == selected)
+        .position(|(id, _, _, _)| Some(id.as_str()) == selected)
         .unwrap_or(0);
     let offset = selection
         .saturating_add(1)
@@ -68,7 +109,7 @@ fn column(
     let finder = state.finder.as_ref().filter(|_| level == state.focus);
     let position =
         finder.and_then(|finder| selected.and_then(|id| finder.position(&state.names(level), id)));
-    for (row, (id, prefix, name)) in rows
+    for (row, (id, prefix, name, mut row_indicator)) in rows
         .into_iter()
         .skip(offset)
         .take(usize::from(inner.height))
@@ -176,13 +217,28 @@ fn column(
         let badge_width = Span::raw(&badge)
             .width()
             .min(usize::from(content_area.width)) as u16;
-        let label_width = content_area.width - badge_width;
-        let badge_x = content_area.x + line.width().min(usize::from(label_width)) as u16;
-        // Reserve the badge and caps before clipping long names, including wide glyphs.
+        if filled && let Some(indicator) = &mut row_indicator {
+            indicator.style = Style::default();
+        }
+        let indicator_width = row_indicator
+            .as_ref()
+            .map_or(0, Span::width)
+            .min(usize::from(content_area.width - badge_width))
+            as u16;
+        let label_width = content_area.width - badge_width - indicator_width;
+        let indicator_x = content_area.x + line.width().min(usize::from(label_width)) as u16;
+        let badge_x = indicator_x + indicator_width;
+        // Reserve indicators, badge and caps before clipping long names, including wide glyphs.
         frame.render_widget(
             Paragraph::new(line).style(style),
             Rect::new(content_area.x, y, label_width, 1),
         );
+        if let Some(indicator) = row_indicator {
+            frame.render_widget(
+                Paragraph::new(indicator).style(style),
+                Rect::new(indicator_x, y, indicator_width, 1),
+            );
+        }
         frame.render_widget(
             Paragraph::new(badge).style(Style::from(&theme.picker.find_position)),
             Rect::new(badge_x, y, badge_width, 1),

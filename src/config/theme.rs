@@ -100,7 +100,7 @@ pub struct PreviewTheme {
     pub title: StyleDef,
 }
 
-/// Glyph and colour for a tree level. Empty text deliberately hides the icon.
+/// Glyph and colour for a tree level or row indicator. Empty text hides it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[cfg_attr(test, schemars(deny_unknown_fields))]
@@ -110,7 +110,7 @@ pub struct Icon {
     pub fg: Option<Color>,
 }
 
-/// Icons for the three tmux tree levels.
+/// Icons for tmux tree levels and row indicators.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[cfg_attr(test, schemars(deny_unknown_fields))]
@@ -118,6 +118,8 @@ pub struct Icons {
     pub session: Icon,
     pub window: Icon,
     pub pane: Icon,
+    pub stashed: Icon,
+    pub copy_mode: Icon,
 }
 
 /// Cut-pane row marker and header badge.
@@ -298,6 +300,30 @@ mod tests {
         let actual =
             Theme::from_toml(&preset::theme(), Some("[icons]\nsession = { text = 'S' }")).unwrap();
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn row_indicator_defaults() {
+        let theme = Theme::from_toml(&preset::theme(), None).unwrap();
+        assert_eq!(theme.icons.stashed.text, "\u{f09a4} $count");
+        assert_eq!(theme.icons.stashed.fg, Some(Color::LightCyan));
+        assert_eq!(theme.icons.copy_mode.text, "\u{f18f1}");
+        assert_eq!(theme.icons.copy_mode.fg, Some(Color::LightYellow));
+    }
+
+    #[test]
+    fn partial_row_indicator_override_keeps_colours_and_other_defaults() {
+        let mut expected = Theme::from_toml(&preset::theme(), None).unwrap();
+        expected.icons.stashed.text = "S".into();
+        expected.icons.copy_mode.text = String::new();
+        let actual = Theme::from_toml(
+            &preset::theme(),
+            Some("[icons]\nstashed = { text = 'S' }\ncopy_mode = { text = '' }"),
+        )
+        .unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(actual.icons.stashed.fg, Some(Color::LightCyan));
+        assert_eq!(actual.icons.copy_mode.fg, Some(Color::LightYellow));
     }
 
     #[test]

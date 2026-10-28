@@ -1,6 +1,6 @@
 //! Picker state and synchronous action handling, independent of terminal rendering.
 
-use std::cmp::Reverse;
+use std::{cmp::Reverse, collections::HashMap};
 
 use anyhow::Result;
 use crossterm::event::KeyCode;
@@ -43,6 +43,7 @@ pub struct State {
     pub cut: Option<String>,
     pub floating_pane: FloatingPaneConfig,
     pub tree: Tree,
+    pub stash_counts: HashMap<String, usize>,
     pub current: Option<Current>,
     pub suppressed_pane: Option<String>,
     pub focus: Level,
@@ -74,6 +75,7 @@ impl State {
                 position: FloatingPosition::Centre,
             },
             options,
+            stash_counts: tree.stash_counts(),
             tree,
             current,
             suppressed_pane,
@@ -309,6 +311,7 @@ impl State {
                 .unwrap_or(0)
         });
         self.tree = tmux.tree()?;
+        self.stash_counts = self.tree.stash_counts();
         if self.cut.is_some() && self.cut_target().is_none() {
             self.cut = None;
             self.message = Some("Cut pane no longer exists".into());

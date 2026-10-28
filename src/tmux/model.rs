@@ -1,9 +1,32 @@
 //! Owned snapshots of tmux sessions, windows, and panes.
 
+use std::collections::HashMap;
+
 /// A consistent snapshot from one tmux query.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Tree {
     pub sessions: Vec<Session>,
+}
+
+impl Tree {
+    /// Count floating stash contents by the stable id of their source window.
+    pub fn stash_counts(&self) -> HashMap<String, usize> {
+        let mut counts = HashMap::new();
+        for session in &self.sessions {
+            if session.name != "pmux" || !session.stash {
+                continue;
+            }
+            for window in &session.windows {
+                if let Some(source) = &window.stash_source {
+                    let count = window.panes.iter().filter(|pane| pane.floating).count();
+                    if count > 0 {
+                        *counts.entry(source.clone()).or_default() += count;
+                    }
+                }
+            }
+        }
+        counts
+    }
 }
 
 /// A tmux session, addressed internally by its stable `$` id.
@@ -12,6 +35,7 @@ pub struct Session {
     pub id: String,
     pub name: String,
     pub last_attached: u64,
+    pub stash: bool,
     pub windows: Vec<Window>,
 }
 
@@ -33,6 +57,7 @@ pub struct Window {
     pub name: String,
     pub active: bool,
     pub zoomed: bool,
+    pub stash_source: Option<String>,
     pub panes: Vec<Pane>,
 }
 
@@ -54,6 +79,14 @@ pub struct Pane {
     pub active: bool,
     pub command: String,
     pub floating: bool,
+    pub mode: String,
+}
+
+impl Pane {
+    /// Copy and read-only view modes share the picker's copy-mode indicator.
+    pub fn in_copy_mode(&self) -> bool {
+        matches!(self.mode.as_str(), "copy-mode" | "view-mode")
+    }
 }
 
 /// Detailed pane state for floating-pane commands. Options travel with the pane.
@@ -128,6 +161,53 @@ pub struct Current {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn copy_and_view_modes_only() {
+        for (mode, expected) in [
+            ("copy-mode", true),
+            ("view-mode", true),
+            ("clock-mode", false),
+            ("", false),
+        ] {
+            let pane = Pane {
+                mode: mode.into(),
+                ..Default::default()
+            };
+            assert_eq!(pane.in_copy_mode(), expected, "{mode}");
+        }
+    }
+
+    #[test]
+    fn stash_counts_only_owned_stash_floats() {
+        let float = Pane {
+            floating: true,
+            ..Default::default()
+        };
+        let window = Window {
+            stash_source: Some("@3".into()),
+            panes: vec![Pane::default(), float.clone(), float],
+            ..Default::default()
+        };
+        let mut tree = Tree {
+            sessions: vec![Session {
+                name: "pmux".into(),
+                stash: true,
+                windows: vec![window.clone()],
+                ..Default::default()
+            }],
+        };
+        assert_eq!(tree.stash_counts().get("@3"), Some(&2));
+        tree.sessions[0].windows[0].panes.remove(0);
+        assert_eq!(tree.stash_counts().get("@3"), Some(&2));
+        tree.sessions[0].windows.push(window);
+        assert_eq!(tree.stash_counts().get("@3"), Some(&4));
+        tree.sessions[0].stash = false;
+        assert!(tree.stash_counts().is_empty());
+        tree.sessions[0].stash = true;
+        tree.sessions[0].name = "work".into();
+        assert!(tree.stash_counts().is_empty());
+    }
 
     #[test]
     fn target_formatting() {

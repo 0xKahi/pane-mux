@@ -23,12 +23,14 @@ fn fixture() -> (State, FakeTmux, Theme, PickerConfig, Keymap) {
             name: "editor".into(),
             active: true,
             zoomed: false,
+            stash_source: None,
             panes: vec![
                 Pane {
                     id: "%12".into(),
                     index: 0,
                     active: true,
                     command: "nvim".into(),
+                    mode: String::new(),
                     floating: false,
                 },
                 Pane {
@@ -36,6 +38,7 @@ fn fixture() -> (State, FakeTmux, Theme, PickerConfig, Keymap) {
                     index: 2,
                     active: false,
                     command: "zsh".into(),
+                    mode: String::new(),
                     floating: false,
                 },
             ],
@@ -46,6 +49,7 @@ fn fixture() -> (State, FakeTmux, Theme, PickerConfig, Keymap) {
             name: "server logs".into(),
             active: false,
             zoomed: false,
+            stash_source: None,
             panes: Vec::new(),
         },
     ];
@@ -76,7 +80,16 @@ fn fixture() -> (State, FakeTmux, Theme, PickerConfig, Keymap) {
 }
 
 fn draw(state: &mut State, theme: &Theme, config: &PickerConfig) -> Terminal<TestBackend> {
-    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    draw_width(state, theme, config, 80)
+}
+
+fn draw_width(
+    state: &mut State,
+    theme: &Theme,
+    config: &PickerConfig,
+    width: u16,
+) -> Terminal<TestBackend> {
+    let mut terminal = Terminal::new(TestBackend::new(width, 24)).unwrap();
     terminal
         .draw(|frame| {
             let hints = heights(frame.area(), config);
@@ -90,6 +103,132 @@ fn draw(state: &mut State, theme: &Theme, config: &PickerConfig) -> Terminal<Tes
 
 fn press(state: &mut State, fake: &FakeTmux, keymap: &Keymap, key: &str) {
     state.handle_key(key.parse().unwrap(), keymap, fake);
+}
+
+fn add_row_indicators(state: &mut State) {
+    state.stash_counts.insert("@5".into(), 2);
+    let panes = &mut state.tree.sessions[0].windows[0].panes;
+    panes[1].index = 1;
+    panes[1].mode = "copy-mode".into();
+}
+
+#[test]
+fn row_indicators_inline_and_hover_colours() {
+    let (mut state, _, mut theme, config, _) = fixture();
+    add_row_indicators(&mut state);
+    let terminal = draw(&mut state, &theme, &config);
+    insta::assert_snapshot!("row_indicators", terminal.backend());
+    assert!(terminal.backend().to_string().contains("1: editor  󰦤 2"));
+    assert!(terminal.backend().to_string().contains("1: zsh  󱣱"));
+    let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
+    let buffer = terminal.backend().buffer();
+    let stash = &buffer[(areas.columns[1].x + 18, areas.columns[1].y + 1)];
+    assert_eq!(stash.symbol(), "󰦤");
+    assert_eq!(stash.fg, Color::LightCyan);
+    assert_eq!(
+        stash.bg,
+        buffer[(areas.columns[1].x + 10, areas.columns[1].y + 1)].bg
+    );
+    assert!(stash.modifier.contains(Modifier::UNDERLINED));
+    let mode_pos = (areas.columns[2].x + 15, areas.columns[2].y + 2);
+    assert_eq!(buffer[mode_pos].symbol(), "󱣱");
+    assert_eq!(buffer[mode_pos].fg, Color::LightYellow);
+
+    state.focus = Level::Pane;
+    state.pane = Some("%13".into());
+    for (reversed, bg) in [(true, None), (false, Some(Color::Blue))] {
+        theme.indicator.current.reversed = Some(reversed);
+        theme.indicator.current.bg = bg;
+        let terminal = draw(&mut state, &theme, &config);
+        let buffer = terminal.backend().buffer();
+        let mode = &buffer[mode_pos];
+        let name = &buffer[(areas.columns[2].x + 10, mode_pos.1)];
+        assert_eq!(
+            (mode.fg, mode.bg, mode.modifier),
+            (name.fg, name.bg, name.modifier)
+        );
+    }
+}
+
+#[test]
+fn row_indicator_before_find_badge() {
+    let (mut state, _, theme, config, _) = fixture();
+    add_row_indicators(&mut state);
+    state.focus = Level::Window;
+    state.finder = Some(Finder::new("editor".into(), Case::Sensitive).unwrap());
+    let terminal = draw_width(&mut state, &theme, &config, 110);
+    insta::assert_snapshot!(terminal.backend());
+    assert!(
+        terminal
+            .backend()
+            .to_string()
+            .contains("1: editor  󰦤 2 [1/1]")
+    );
+}
+
+#[test]
+fn row_indicator_survives_clipping_before_cap() {
+    let (mut state, _, mut theme, config, _) = fixture();
+    add_row_indicators(&mut state);
+    state.focus = Level::Window;
+    state.tree.sessions[0].windows[0].name = "界".repeat(40);
+    theme.indicator.padding.open = "<".into();
+    theme.indicator.padding.close = ">".into();
+    let terminal = draw(&mut state, &theme, &config);
+    insta::assert_snapshot!(terminal.backend());
+    let area = Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[1]);
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer[(area.right() - 1, area.y)].symbol(), ">");
+    for (offset, symbol) in "  󰦤 2".chars().enumerate() {
+        assert_eq!(
+            buffer[(area.right() - 6 + offset as u16, area.y)].symbol(),
+            symbol.to_string()
+        );
+    }
+}
+
+#[test]
+fn hidden_row_indicators_leave_no_gap_and_modes_are_filtered() {
+    let (mut state, _, mut theme, config, _) = fixture();
+    add_row_indicators(&mut state);
+    theme.icons.stashed.text.clear();
+    theme.icons.copy_mode.text.clear();
+    state.focus = Level::Pane;
+    state.pane = Some("%13".into());
+    state.finder = Some(Finder::new("zsh".into(), Case::Sensitive).unwrap());
+    let terminal = draw(&mut state, &theme, &config);
+    insta::assert_snapshot!("hidden_row_indicators", terminal.backend());
+    assert!(terminal.backend().to_string().contains("1: zsh [1/1]"));
+    theme.icons.copy_mode.text = "M".into();
+    for (mode, expected) in [
+        ("view-mode", "1: zsh  M [1/1]"),
+        ("clock-mode", "1: zsh [1/1]"),
+        ("", "1: zsh [1/1]"),
+    ] {
+        state.tree.sessions[0].windows[0].panes[1].mode = mode.into();
+        assert!(
+            draw(&mut state, &theme, &config)
+                .backend()
+                .to_string()
+                .contains(expected)
+        );
+    }
+}
+
+#[test]
+fn row_indicators_are_safe_on_tiny_terminals() {
+    let (mut state, _, theme, config, _) = fixture();
+    add_row_indicators(&mut state);
+    state.focus = Level::Window;
+    state.finder = Some(Finder::new("editor".into(), Case::Sensitive).unwrap());
+    for width in 0..40 {
+        for height in 0..5 {
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            terminal
+                .draw(|frame| render(frame, &state, &theme, &config))
+                .unwrap();
+        }
+    }
 }
 
 #[test]
