@@ -4,23 +4,28 @@ use clap::Parser;
 use pane_mux::{
     cli::{Cli, Command, FloatAction},
     commands::{self, Outcome},
-    config,
-    tmux::TmuxCli,
+    config, mux,
 };
 
 fn execute(cli: Cli) -> anyhow::Result<Outcome> {
     let loaded = config::load()?;
-    let tmux = TmuxCli::default();
+    let backend = mux::open()?;
     match cli.command {
-        Command::Picker(args) => commands::picker::run(args.level(), &tmux, &loaded),
-        Command::SwitchSession => commands::switch_session::run(&tmux, &loaded),
-        Command::MovePane { target } => commands::move_pane::run(target.as_deref(), &tmux, &loaded),
+        Command::Picker(args) => commands::picker::run(args.level(), &*backend, &loaded),
+        Command::SwitchSession => commands::switch_session::run(&*backend, &loaded),
+        Command::MovePane { target } => {
+            commands::move_pane::run(target.as_deref(), &*backend, &loaded)
+        }
         Command::Float { action } => match action {
-            FloatAction::Stash { target } => commands::float::run_stash(target.as_deref(), &tmux),
-            FloatAction::Unstash { target } => {
-                commands::float::run_unstash(target.as_deref(), &tmux)
+            FloatAction::Stash { target } => {
+                commands::float::run_stash(target.as_deref(), &*backend)
             }
-            FloatAction::Toggle { target } => commands::float::run_toggle(target.as_deref(), &tmux),
+            FloatAction::Unstash { target } => {
+                commands::float::run_unstash(target.as_deref(), &*backend)
+            }
+            FloatAction::Toggle { target } => {
+                commands::float::run_toggle(target.as_deref(), &*backend)
+            }
         },
     }
 }

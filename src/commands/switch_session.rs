@@ -3,17 +3,14 @@
 use super::Outcome;
 use crate::{
     config::Loaded,
+    mux::Mux,
     picker::{self, Exit, PickerOptions, SessionOrder},
-    tmux::Tmux,
 };
 use anyhow::{Result, ensure};
 
 /// Require tmux before opening the picker; cancellation never switches clients.
-pub fn run(tmux: &dyn Tmux, loaded: &Loaded) -> Result<Outcome> {
-    ensure!(
-        std::env::var_os("TMUX").is_some(),
-        "switch-session must run inside tmux"
-    );
+pub fn run(tmux: &dyn Mux, loaded: &Loaded) -> Result<Outcome> {
+    ensure!(tmux.in_client(), "switch-session must run inside tmux");
     let options = PickerOptions {
         level: None,
         header: "[Switch]".into(),
@@ -22,8 +19,12 @@ pub fn run(tmux: &dyn Tmux, loaded: &Loaded) -> Result<Outcome> {
         ..PickerOptions::default()
     };
     match picker::run(options, tmux, loaded)? {
-        Exit::Pick(target) => {
-            tmux.switch_client(&target)?;
+        Exit::Pick {
+            target,
+            level,
+            tree,
+        } => {
+            tmux.switch_client(&tmux.target_string(&tree, &target, level))?;
             Ok(Outcome::Done)
         }
         Exit::Cancel => Ok(Outcome::Cancelled),

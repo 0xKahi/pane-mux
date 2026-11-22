@@ -10,8 +10,8 @@ use ratatui::{
 
 use crate::{
     config::{Theme, theme::Icon},
+    mux::Level,
     picker::State,
-    tmux::Level,
 };
 
 pub(super) fn render(frame: &mut Frame, areas: [Rect; 3], state: &State, theme: &Theme) {

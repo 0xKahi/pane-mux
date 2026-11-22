@@ -1,6 +1,9 @@
 //! Opt-in tests use only a private tmux server, never the invoking server.
 
-use pane_mux::tmux::{Tmux, TmuxCli};
+use pane_mux::{
+    mux::Mux,
+    tmux::{FloatMux, TmuxCli},
+};
 
 struct ServerGuard;
 
@@ -59,7 +62,7 @@ fn private_server_tree_capture_and_mutations() {
     assert_eq!(options.header, "[Move]");
     let state = pane_mux::picker::State::load(options, &client, None).unwrap();
     assert_eq!(state.cut.as_deref(), Some(pane.as_str()));
-    assert_eq!(state.focus, pane_mux::tmux::Level::Session);
+    assert_eq!(state.focus, pane_mux::mux::Level::Session);
     assert_eq!(state.session.as_deref(), Some(session.as_str()));
     assert_eq!(state.hovered_session().unwrap().name, "work");
     assert_ne!(

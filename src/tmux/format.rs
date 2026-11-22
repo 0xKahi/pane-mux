@@ -1,8 +1,19 @@
-//! Tab-separated tmux snapshot format and parser.
+//! Tmux target formatting and tab-separated snapshot parsing.
 
 use anyhow::{Context, Result, ensure};
 
-use super::model::{Pane, Session, Tree, Window};
+use crate::mux::{Level, Pane, Session, Target, Tree, Window};
+
+pub(super) fn format_target(target: &Target, level: Level) -> String {
+    match level {
+        Level::Session => target.session.clone(),
+        Level::Window => format!("{}:{}", target.session, target.window_index),
+        Level::Pane => format!(
+            "{}:{}.{}",
+            target.session, target.window_index, target.pane_index
+        ),
+    }
+}
 
 /// One row per pane; tabs preserve spaces in names and commands.
 pub const PANE_FORMAT: &str = "#{session_id}\t#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_current_command}\t#{session_last_attached}\t#{window_zoomed_flag}\t#{pane_floating_flag}\t#{pane_mode}\t#{@pmux_stash}\t#{@pmux_source}";

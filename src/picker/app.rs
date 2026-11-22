@@ -8,13 +8,13 @@ use crossterm::event::{self, Event, KeyEventKind};
 use super::{Exit, PickerOptions, State, terminal, ui};
 use crate::{
     config::{Loaded, keymap::Key},
-    tmux::{Tmux, suppressed_pane_from_env},
+    mux::Mux,
 };
 
 /// Run the picker, restoring the terminal before returning a target or cancellation.
-pub fn run(options: PickerOptions, tmux: &dyn Tmux, loaded: &Loaded) -> Result<Exit> {
+pub fn run(options: PickerOptions, tmux: &dyn Mux, loaded: &Loaded) -> Result<Exit> {
     // Server/startup errors must not enter raw mode or the alternate screen.
-    let mut state = State::load(options, tmux, suppressed_pane_from_env())?;
+    let mut state = State::load(options, tmux, tmux.suppressed_pane())?;
     state.floating_pane = loaded.config.floating_pane.clone();
     let mut session = terminal::setup()?;
     let tick = Duration::from_millis(300);
@@ -27,7 +27,7 @@ pub fn run(options: PickerOptions, tmux: &dyn Tmux, loaded: &Loaded) -> Result<E
             state.list_height = heights.list;
             state.preview_height = heights.preview;
             session.terminal.draw(|frame| {
-                ui::render(frame, &state, &loaded.theme, &loaded.config.picker);
+                ui::render(frame, &state, tmux, &loaded.theme, &loaded.config.picker);
             })?;
             dirty = false;
         }

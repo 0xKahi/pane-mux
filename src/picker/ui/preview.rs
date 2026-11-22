@@ -9,12 +9,16 @@ use ratatui::{
     widgets::{Block, BorderType, Paragraph},
 };
 
-use crate::{config::Theme, picker::State, tmux::Level};
+use crate::{
+    config::Theme,
+    mux::{Level, Mux},
+    picker::State,
+};
 
-pub(super) fn render(frame: &mut Frame, area: Rect, state: &State, theme: &Theme) {
+pub(super) fn render(frame: &mut Frame, area: Rect, state: &State, mux: &dyn Mux, theme: &Theme) {
     let title = state
         .preview_target()
-        .map(|t| t.at(Level::Pane))
+        .map(|t| mux.display_target(&state.tree, &t, Level::Pane))
         .unwrap_or_else(|| "Preview".into());
     let block = Block::bordered()
         .border_type(BorderType::Rounded)

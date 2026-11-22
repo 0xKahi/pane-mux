@@ -4,10 +4,15 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail, ensure};
 
-use super::{Current, Tree, format};
+use crate::mux::{Current, Level, Mux, Target, Tree};
 
-/// Operations needed by the picker; ids are used for mutations.
-pub trait Tmux {
+use super::format;
+
+/// Tmux-specific primitives for managing floating panes.
+///
+/// The pinned stable toolchain (Rust 1.86+) supports trait upcasting, so
+/// `&dyn FloatMux` coerces directly to `&dyn Mux` when passed to core helpers.
+pub trait FloatMux: Mux {
     fn float_window(&self, window: &str) -> Result<super::model::FloatWindow>;
     fn window_layout(&self, window: &str) -> Result<String>;
     /// Sizes accept cells or percentages; positions are border-inclusive.
@@ -36,36 +41,6 @@ pub trait Tmux {
         height: i32,
     ) -> Result<String>;
     fn socket_path(&self) -> Result<String>;
-    fn tree(&self) -> Result<Tree>;
-    fn capture(&self, pane_id: &str) -> Result<String>;
-    fn current(&self) -> Result<Option<Current>>;
-    fn resolve_pane(&self, target: &str) -> Result<String>;
-    fn move_pane_to_new_session(
-        &self,
-        pane_id: &str,
-        session_name: Option<&str>,
-        window_name: Option<&str>,
-    ) -> Result<(String, String)>;
-    fn move_pane_to_new_window(
-        &self,
-        pane_id: &str,
-        session_id: &str,
-        name: Option<&str>,
-    ) -> Result<String>;
-    fn float_pane_in_window(
-        &self,
-        pane_id: &str,
-        window_id: &str,
-        floating: &crate::config::settings::FloatingPaneConfig,
-    ) -> Result<()>;
-    fn new_session(&self, name: Option<&str>) -> Result<String>;
-    fn new_window(&self, session_id: &str, name: Option<&str>) -> Result<String>;
-    fn rename_session(&self, session_id: &str, name: &str) -> Result<()>;
-    fn rename_window(&self, window_id: &str, name: &str) -> Result<()>;
-    fn kill_session(&self, session_id: &str) -> Result<()>;
-    fn kill_window(&self, window_id: &str) -> Result<()>;
-    fn kill_pane(&self, pane_id: &str) -> Result<()>;
-    fn switch_client(&self, target: &str) -> Result<()>;
 }
 
 /// Command-based client. A named socket isolates tests from the user's server.
@@ -126,7 +101,7 @@ impl TmuxCli {
     }
 }
 
-impl Tmux for TmuxCli {
+impl FloatMux for TmuxCli {
     fn float_window(&self, window: &str) -> Result<super::model::FloatWindow> {
         let mut snapshot = format::parse_float_window(&self.run(&[
             "list-panes",
@@ -290,6 +265,28 @@ impl Tmux for TmuxCli {
             .trim()
             .into())
     }
+}
+
+impl Mux for TmuxCli {
+    fn target_string(&self, _tree: &Tree, target: &Target, level: Level) -> String {
+        format::format_target(target, level)
+    }
+
+    fn display_target(&self, tree: &Tree, target: &Target, level: Level) -> String {
+        self.target_string(tree, target, level)
+    }
+
+    fn in_client(&self) -> bool {
+        std::env::var_os("TMUX").is_some()
+    }
+
+    fn suppressed_pane(&self) -> Option<String> {
+        suppressed_pane(
+            std::env::var("TMUX").ok().as_deref(),
+            std::env::var("TMUX_PANE").ok().as_deref(),
+        )
+    }
+
     fn tree(&self) -> Result<Tree> {
         format::parse_tree(&self.run(&["list-panes", "-a", "-F", format::PANE_FORMAT])?)
     }
@@ -449,17 +446,34 @@ pub fn suppressed_pane(tmux: Option<&str>, tmux_pane: Option<&str>) -> Option<St
     tmux.and(tmux_pane).map(String::from)
 }
 
-/// Read the real environment for preview suppression.
-pub fn suppressed_pane_from_env() -> Option<String> {
-    suppressed_pane(
-        std::env::var("TMUX").ok().as_deref(),
-        std::env::var("TMUX_PANE").ok().as_deref(),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn target_formatting() {
+        let tree = super::super::sample_tree(&["work"]);
+        let real = TmuxCli::default();
+        let fake = super::super::FakeTmux::new(tree.clone());
+        let target = Target {
+            session_id: "$0".into(),
+            window_id: Some("@0".into()),
+            pane_id: Some("%0".into()),
+            session: "work".into(),
+            window_index: 1,
+            pane_index: 0,
+        };
+        for mux in [&real as &dyn Mux, &fake] {
+            for (level, expected) in [
+                (Level::Session, "work"),
+                (Level::Window, "work:1"),
+                (Level::Pane, "work:1.0"),
+            ] {
+                assert_eq!(mux.target_string(&tree, &target, level), expected);
+                assert_eq!(mux.display_target(&tree, &target, level), expected);
+            }
+        }
+    }
 
     #[test]
     fn suppression_regular_pane_popup_and_outside() {

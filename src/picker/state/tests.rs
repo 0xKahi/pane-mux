@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     config::preset,
-    tmux::{FakeTmux, sample_tree},
+    tmux::{FakeTmux, FloatMux, sample_tree},
 };
 
 fn fixture() -> FakeTmux {
@@ -715,17 +715,18 @@ fn navigation_next_previous_top_bottom_pages_and_offsets() {
     assert_eq!(state.session.as_deref(), Some("$0"));
 }
 
+fn preview_title(state: &State, fake: &FakeTmux) -> String {
+    fake.display_target(&state.tree, &state.preview_target().unwrap(), Level::Pane)
+}
+
 #[test]
 fn preview_follows_session_active_descendants() {
     let fake = fixture();
     let mut state = state(&fake);
-    assert_eq!(state.preview_target().unwrap().at(Level::Pane), "work:1.0");
+    assert_eq!(preview_title(&state, &fake), "work:1.0");
     assert!(state.preview.content.starts_with("line 0"));
     key(&mut state, &fake, "j");
-    assert_eq!(
-        state.preview_target().unwrap().at(Level::Pane),
-        "dotfiles:0.0"
-    );
+    assert_eq!(preview_title(&state, &fake), "dotfiles:0.0");
     assert_eq!(state.preview.pane_id.as_deref(), Some("%1"));
 }
 
@@ -735,11 +736,17 @@ fn preview_follows_window_and_pane_hover() {
     let mut state = state(&fake);
     key(&mut state, &fake, "l");
     key(&mut state, &fake, "k");
-    assert_eq!(state.preview_target().unwrap().at(Level::Pane), "work:0.0");
+    assert_eq!(preview_title(&state, &fake), "work:0.0");
     key(&mut state, &fake, "j");
     key(&mut state, &fake, "l");
     key(&mut state, &fake, "j");
-    assert_eq!(state.preview_target().unwrap().at(Level::Pane), "work:1.2");
+    assert_eq!(preview_title(&state, &fake), "work:1.2");
+    let target = state.preview_target().unwrap();
+    assert_eq!(target.session_id, "$0");
+    assert_eq!(target.window_id.as_deref(), Some("@10"));
+    assert_eq!(target.pane_id, state.pane);
+    state.cut = target.pane_id.clone();
+    assert_eq!(state.cut_target(), Some(target));
     assert_eq!(state.preview.content, "\u{1b}[31msecond pane\u{1b}[0m\n");
 }
 
@@ -764,18 +771,16 @@ fn scroll_preview_half_page_clamps_and_resets_on_target_change() {
 
 #[test]
 fn regular_pane_suppression_skips_capture_but_popup_captures_current() {
-    let fake = fixture();
-    let suppressed = crate::tmux::suppressed_pane(Some("socket"), Some("%10"));
-    let state = State::load(PickerOptions::default(), &fake, suppressed).unwrap();
+    let fake = fixture()
+        .with_in_client(true)
+        .with_suppressed_pane(Some("%10".into()));
+    assert!(fake.in_client());
+    let state = State::load(PickerOptions::default(), &fake, fake.suppressed_pane()).unwrap();
     assert!(state.preview_suppressed());
     assert!(state.preview.content.is_empty());
     assert!(!fake.calls().iter().any(|call| call == "capture-pane %10"));
-    let popup = State::load(
-        PickerOptions::default(),
-        &fake,
-        crate::tmux::suppressed_pane(Some("socket"), None),
-    )
-    .unwrap();
+    let fake = fake.with_suppressed_pane(None);
+    let popup = State::load(PickerOptions::default(), &fake, fake.suppressed_pane()).unwrap();
     assert!(!popup.preview_suppressed());
     assert!(!popup.preview.content.is_empty());
 }
@@ -825,6 +830,45 @@ fn removed_window_and_pane_clamp_without_losing_parent() {
     assert_eq!(state.session.as_deref(), Some("$0"));
 }
 
+fn pick(state: &mut State, fake: &FakeTmux) -> String {
+    let Some(Exit::Pick {
+        target,
+        level,
+        tree,
+    }) = key(state, fake, "<Enter>")
+    else {
+        panic!("expected a pick");
+    };
+    fake.target_string(&tree, &target, level)
+}
+
+#[test]
+fn targets_without_children_keep_zero_display_indexes() {
+    let fake = fixture();
+    let mut state = state(&fake);
+    state.tree.sessions[0].windows[1].panes.clear();
+
+    key(&mut state, &fake, "l");
+    let target = state.hovered().unwrap();
+    assert_eq!(target.window_id.as_deref(), Some("@10"));
+    assert_eq!(target.pane_id, None);
+    assert_eq!(
+        fake.target_string(&state.tree, &target, Level::Pane),
+        "work:1.0"
+    );
+
+    key(&mut state, &fake, "h");
+    state.tree.sessions[0].windows.clear();
+    let target = state.hovered().unwrap();
+    assert_eq!(target.session_id, "$0");
+    assert_eq!(target.window_id, None);
+    assert_eq!(target.pane_id, None);
+    assert_eq!(
+        fake.target_string(&state.tree, &target, Level::Pane),
+        "work:0.0"
+    );
+}
+
 #[test]
 fn session_output_flag_from_pane_column_returns_work() {
     let fake = fixture();
@@ -833,10 +877,7 @@ fn session_output_flag_from_pane_column_returns_work() {
     for k in ["l", "l", "j"] {
         key(&mut state, &fake, k);
     }
-    assert_eq!(
-        key(&mut state, &fake, "<Enter>"),
-        Some(Exit::Pick("work".into()))
-    );
+    assert_eq!(pick(&mut state, &fake), "work");
 }
 
 #[test]
@@ -844,22 +885,13 @@ fn default_output_level_follows_focus_and_explicit_levels_override_it() {
     let fake = fixture();
     let mut state = state(&fake);
     key(&mut state, &fake, "l");
-    assert_eq!(
-        key(&mut state, &fake, "<Enter>"),
-        Some(Exit::Pick("work:1".into()))
-    );
+    assert_eq!(pick(&mut state, &fake), "work:1");
     state.options.level = Some(Level::Pane);
-    assert_eq!(
-        key(&mut state, &fake, "<Enter>"),
-        Some(Exit::Pick("work:1.0".into()))
-    );
+    assert_eq!(pick(&mut state, &fake), "work:1.0");
     state.options.level = Some(Level::Window);
     key(&mut state, &fake, "l");
     key(&mut state, &fake, "j");
-    assert_eq!(
-        key(&mut state, &fake, "<Enter>"),
-        Some(Exit::Pick("work:1".into()))
-    );
+    assert_eq!(pick(&mut state, &fake), "work:1");
 }
 
 #[test]

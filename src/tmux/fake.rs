@@ -4,14 +4,18 @@ use std::{cell::RefCell, collections::HashMap};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 
-use super::{Current, Pane, Session, Tmux, Tree, Window};
+use crate::mux::{Current, Level, Mux, Pane, Session, Target, Tree, Window};
+
+use super::{FloatMux, format};
 
 /// Mutable fake server with a call log and one-shot error injection.
 #[derive(Debug)]
 pub struct FakeTmux {
-    // RefCell provides interior mutability because Tmux methods take &self.
+    // RefCell provides interior mutability because backend methods take &self.
     tree: RefCell<Tree>,
     current: Option<Current>,
+    in_client: bool,
+    suppressed_pane: Option<String>,
     captures: HashMap<String, String>,
     calls: RefCell<Vec<String>>,
     failure: RefCell<Option<String>>,
@@ -42,6 +46,8 @@ impl FakeTmux {
         Self {
             tree: RefCell::new(tree),
             current: None,
+            in_client: false,
+            suppressed_pane: None,
             captures: HashMap::new(),
             calls: RefCell::new(Vec::new()),
             failure: RefCell::new(None),
@@ -58,6 +64,18 @@ impl FakeTmux {
     /// Set the invoking client's current items.
     pub fn with_current(mut self, current: Current) -> Self {
         self.current = Some(current);
+        self
+    }
+
+    /// Set whether the picker is running inside a client.
+    pub fn with_in_client(mut self, in_client: bool) -> Self {
+        self.in_client = in_client;
+        self
+    }
+
+    /// Set the pane whose preview should be suppressed.
+    pub fn with_suppressed_pane(mut self, pane: Option<String>) -> Self {
+        self.suppressed_pane = pane;
         self
     }
 
@@ -163,7 +181,7 @@ impl FakeTmux {
     }
 }
 
-impl Tmux for FakeTmux {
+impl FloatMux for FakeTmux {
     fn float_window(&self, window: &str) -> Result<super::model::FloatWindow> {
         self.record(format!("float-window {window}"))?;
         let tree = self.tree.borrow();
@@ -517,6 +535,25 @@ impl Tmux for FakeTmux {
             std::process::id()
         ))
     }
+}
+
+impl Mux for FakeTmux {
+    fn target_string(&self, _tree: &Tree, target: &Target, level: Level) -> String {
+        format::format_target(target, level)
+    }
+
+    fn display_target(&self, tree: &Tree, target: &Target, level: Level) -> String {
+        self.target_string(tree, target, level)
+    }
+
+    fn in_client(&self) -> bool {
+        self.in_client
+    }
+
+    fn suppressed_pane(&self) -> Option<String> {
+        self.suppressed_pane.clone()
+    }
+
     fn tree(&self) -> Result<Tree> {
         self.record("tree".into())?;
         let mut tree = self.tree.borrow().clone();

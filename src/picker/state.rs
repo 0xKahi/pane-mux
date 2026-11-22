@@ -17,13 +17,18 @@ use crate::{
         FloatingPaneConfig, FloatingPosition,
         keymap::{Key, Keymap},
     },
-    tmux::{Current, Level, Pane, Session, Target, Tmux, Tree, Window},
+    mux::{Current, Level, Mux, Pane, Session, Target, Tree, Window},
 };
 
 /// Outcome consumed by the command after restoring the terminal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Exit {
-    Pick(String),
+    Pick {
+        target: Target,
+        level: Level,
+        // Keep the selection snapshot so formatting needs no backend re-query.
+        tree: Tree,
+    },
     Cancel,
     Moved,
 }
@@ -124,7 +129,7 @@ impl State {
     /// Load initial server data. Startup errors propagate to the command.
     pub fn load(
         options: PickerOptions,
-        tmux: &dyn Tmux,
+        tmux: &dyn Mux,
         suppressed_pane: Option<String>,
     ) -> Result<Self> {
         let mut state = Self::new(options, tmux.tree()?, tmux.current()?, suppressed_pane);
@@ -197,7 +202,7 @@ impl State {
         }
     }
 
-    /// Resolve a printable target; absent children are allowed for session/window picks.
+    /// Resolve a target; absent children are allowed for session/window picks.
     pub fn hovered(&self) -> Option<Target> {
         let session = self.hovered_session()?;
         if self.focus == Level::Window {
@@ -206,10 +211,15 @@ impl State {
         if self.focus == Level::Pane {
             self.hovered_pane()?;
         }
+        let window = self.selected_window();
+        let pane = self.selected_pane();
         Some(Target {
+            session_id: session.id.clone(),
+            window_id: window.map(|w| w.id.clone()),
+            pane_id: pane.map(|p| p.id.clone()),
             session: session.name.clone(),
-            window_index: self.selected_window().map_or(0, |w| w.index),
-            pane_index: self.selected_pane().map_or(0, |p| p.index),
+            window_index: window.map_or(0, |w| w.index),
+            pane_index: pane.map_or(0, |p| p.index),
         })
     }
 
@@ -301,7 +311,7 @@ impl State {
     }
 
     /// Refresh snapshots and preview, retaining ids or clamping vanished cursors.
-    pub fn refresh(&mut self, tmux: &dyn Tmux) -> Result<bool> {
+    pub fn refresh(&mut self, tmux: &dyn Mux) -> Result<bool> {
         let before = self.clone();
         let levels = [Level::Session, Level::Window, Level::Pane];
         let positions = levels.map(|level| {
@@ -328,7 +338,7 @@ impl State {
         Ok(*self != before)
     }
 
-    fn update_preview(&mut self, tmux: &dyn Tmux) -> Result<()> {
+    fn update_preview(&mut self, tmux: &dyn Mux) -> Result<()> {
         let pane_id = self.selected_pane().map(|p| p.id.clone());
         if self.preview.pane_id != pane_id {
             self.preview.scroll = 0;
@@ -356,7 +366,7 @@ impl State {
     }
 
     /// Resolve the active modal layer, swallowing invalid which-key continuations.
-    pub fn handle_key(&mut self, key: Key, keymap: &Keymap, tmux: &dyn Tmux) -> Option<Exit> {
+    pub fn handle_key(&mut self, key: Key, keymap: &Keymap, tmux: &dyn Mux) -> Option<Exit> {
         if let Some(which) = &mut self.which {
             let actions = which.advance(key);
             if which.candidates.is_empty() {
@@ -388,7 +398,7 @@ impl State {
         None
     }
 
-    fn dispatch(&mut self, actions: Vec<Action>, keymap: &Keymap, tmux: &dyn Tmux) -> Option<Exit> {
+    fn dispatch(&mut self, actions: Vec<Action>, keymap: &Keymap, tmux: &dyn Mux) -> Option<Exit> {
         for action in actions {
             if let Some(exit) = self.apply(&action, tmux) {
                 return Some(exit);
@@ -401,16 +411,18 @@ impl State {
     }
 
     /// Apply one action. Operation errors become messages rather than exiting.
-    pub fn apply(&mut self, action: &Action, tmux: &dyn Tmux) -> Option<Exit> {
+    pub fn apply(&mut self, action: &Action, tmux: &dyn Mux) -> Option<Exit> {
         match action {
             Action::Quit => return Some(Exit::Cancel),
             Action::Pick if self.options.cut_locked => {
                 self.message = Some("Paste the cut pane to complete the move".into());
             }
             Action::Pick => {
-                return self
-                    .hovered()
-                    .map(|target| Exit::Pick(target.at(self.options.level.unwrap_or(self.focus))));
+                return self.hovered().map(|target| Exit::Pick {
+                    target,
+                    level: self.options.level.unwrap_or(self.focus),
+                    tree: self.tree.clone(),
+                });
             }
             Action::Escape => {
                 if self.which.take().is_none()
@@ -485,7 +497,7 @@ impl State {
             },
             Action::Create => self.open_input(false),
             Action::Rename => self.open_input(true),
-            Action::Remove => self.open_confirm(),
+            Action::Remove => self.open_confirm(tmux),
             Action::Help => {
                 self.popup = Some(Popup::Help {
                     cursor: 0,
@@ -527,7 +539,7 @@ impl State {
         None
     }
 
-    fn input_changed(&mut self, tmux: &dyn Tmux) {
+    fn input_changed(&mut self, tmux: &dyn Mux) {
         if let Some(Popup::Input {
             value,
             purpose: InputPurpose::Find { previous, case },
@@ -538,7 +550,7 @@ impl State {
         }
     }
 
-    fn find_do(&mut self, query: String, previous: bool, case: Case, tmux: &dyn Tmux) {
+    fn find_do(&mut self, query: String, previous: bool, case: Case, tmux: &dyn Mux) {
         if query.is_empty() {
             self.finder = None;
             return;
@@ -557,7 +569,7 @@ impl State {
         self.finder = Some(finder);
     }
 
-    fn find_jump(&mut self, finder: Finder, previous: bool, include: bool, tmux: &dyn Tmux) {
+    fn find_jump(&mut self, finder: Finder, previous: bool, include: bool, tmux: &dyn Mux) {
         let names = self.names(self.focus);
         let cursor = names
             .iter()
@@ -574,7 +586,7 @@ impl State {
         }
     }
 
-    fn preview_or_message(&mut self, tmux: &dyn Tmux) {
+    fn preview_or_message(&mut self, tmux: &dyn Mux) {
         if let Err(error) = self.update_preview(tmux) {
             self.message = Some(error.to_string());
         }
@@ -635,6 +647,9 @@ impl State {
                     .iter()
                     .find(|pane| pane.id == id)
                     .map(|pane| Target {
+                        session_id: session.id.clone(),
+                        window_id: Some(window.id.clone()),
+                        pane_id: Some(pane.id.clone()),
                         session: session.name.clone(),
                         window_index: window.index,
                         pane_index: pane.index,
@@ -660,7 +675,7 @@ impl State {
         self.message = None;
     }
 
-    fn require_pane(&mut self, pane_id: &str, tmux: &dyn Tmux) -> Result<()> {
+    fn require_pane(&mut self, pane_id: &str, tmux: &dyn Mux) -> Result<()> {
         self.refresh(tmux)?;
         anyhow::ensure!(
             self.tree
@@ -674,7 +689,7 @@ impl State {
         Ok(())
     }
 
-    fn paste(&mut self, tmux: &dyn Tmux) -> Result<Option<Exit>> {
+    fn paste(&mut self, tmux: &dyn Mux) -> Result<Option<Exit>> {
         let Some(pane_id) = self.cut.clone() else {
             self.message = Some("Nothing is cut".into());
             return Ok(None);
@@ -717,7 +732,7 @@ impl State {
         Ok(None)
     }
 
-    fn pasted(&mut self, tmux: &dyn Tmux, level: Level, id: String) -> Result<Option<Exit>> {
+    fn pasted(&mut self, tmux: &dyn Mux, level: Level, id: String) -> Result<Option<Exit>> {
         self.cut = None;
         self.message = None;
         if self.options.cut_locked {
@@ -750,7 +765,7 @@ impl State {
         Ok(None)
     }
 
-    fn open_confirm(&mut self) {
+    fn open_confirm(&mut self, tmux: &dyn Mux) {
         let Some(id) = self.hovered_id().map(String::from) else {
             return;
         };
@@ -763,7 +778,7 @@ impl State {
             body: format!(
                 "Delete {}?",
                 self.hovered()
-                    .map(|t| t.at(self.focus))
+                    .map(|t| tmux.display_target(&self.tree, &t, self.focus))
                     .unwrap_or_else(|| id.clone())
             ),
             level: self.focus,
@@ -771,7 +786,7 @@ impl State {
         });
     }
 
-    fn submit(&mut self, popup: Popup, tmux: &dyn Tmux) -> Result<Option<Exit>> {
+    fn submit(&mut self, popup: Popup, tmux: &dyn Mux) -> Result<Option<Exit>> {
         let mut created = None;
         match popup {
             Popup::Input { value, purpose, .. } => {

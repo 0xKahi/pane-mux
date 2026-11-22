@@ -3,13 +3,13 @@
 use super::Outcome;
 use crate::{
     config::Loaded,
+    mux::Mux,
     picker::{self, Exit, PickerOptions},
-    tmux::Tmux,
 };
 use anyhow::{Context, Result, ensure};
 
 /// Resolve the source and construct options without touching the terminal.
-pub fn options(target: Option<&str>, tmux: &dyn Tmux, inside_tmux: bool) -> Result<PickerOptions> {
+pub fn options(target: Option<&str>, tmux: &dyn Mux, inside_tmux: bool) -> Result<PickerOptions> {
     let pane_id = match target {
         Some(target) => tmux
             .resolve_pane(target)
@@ -31,18 +31,21 @@ pub fn options(target: Option<&str>, tmux: &dyn Tmux, inside_tmux: bool) -> Resu
 }
 
 /// Only a completed paste is successful; cancelling never moves anything.
-pub fn run(target: Option<&str>, tmux: &dyn Tmux, loaded: &Loaded) -> Result<Outcome> {
-    let options = options(target, tmux, std::env::var_os("TMUX").is_some())?;
+pub fn run(target: Option<&str>, tmux: &dyn Mux, loaded: &Loaded) -> Result<Outcome> {
+    let options = options(target, tmux, tmux.in_client())?;
     Ok(match picker::run(options, tmux, loaded)? {
         Exit::Moved => Outcome::Done,
-        Exit::Cancel | Exit::Pick(_) => Outcome::Cancelled,
+        Exit::Cancel | Exit::Pick { .. } => Outcome::Cancelled,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tmux::{Current, FakeTmux, sample_tree};
+    use crate::{
+        mux::Current,
+        tmux::{FakeTmux, sample_tree},
+    };
 
     #[test]
     fn resolves_explicit_or_current_pane_before_opening_picker() {

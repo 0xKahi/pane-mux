@@ -1,4 +1,4 @@
-//! Rendering. Pure functions of `&State`; no tmux calls, no mutation.
+//! Rendering reads picker state and uses the backend to format targets.
 
 mod columns;
 mod layout;
@@ -16,7 +16,7 @@ use ratatui::{
 use super::{popup::Popup, state::State};
 use crate::{
     config::{PickerConfig, Theme},
-    tmux::Level,
+    mux::{Level, Mux},
 };
 
 /// Heights the state needs for paging/scrolling, computed from the same layout as `render`.
@@ -39,14 +39,23 @@ pub fn heights(area: Rect, config: &PickerConfig) -> Heights {
 }
 
 /// Draw the whole picker.
-pub fn render(frame: &mut Frame, state: &State, theme: &Theme, config: &PickerConfig) {
+pub fn render(
+    frame: &mut Frame,
+    state: &State,
+    mux: &dyn Mux,
+    theme: &Theme,
+    config: &PickerConfig,
+) {
     let areas = layout::areas(frame.area(), config);
     frame.render_widget(
         Paragraph::new(state.options.header.clone()).style(Style::from(&theme.picker.header)),
         areas.header,
     );
     if let Some(target) = state.cut_target() {
-        let badge = format!(" cut {} ", target.at(Level::Pane));
+        let badge = format!(
+            " cut {} ",
+            mux.display_target(&state.tree, &target, Level::Pane)
+        );
         let width = Span::raw(&badge)
             .width()
             .min(usize::from(areas.header.width)) as u16;
@@ -61,12 +70,12 @@ pub fn render(frame: &mut Frame, state: &State, theme: &Theme, config: &PickerCo
         );
     }
     columns::render(frame, areas.columns, state, theme);
-    preview::render(frame, areas.preview, state, theme);
-    status(frame, areas.status, state, theme);
+    preview::render(frame, areas.preview, state, mux, theme);
+    status(frame, areas.status, state, mux, theme);
     popup::render(frame, areas.main, state, theme);
 }
 
-fn status(frame: &mut Frame, area: Rect, state: &State, theme: &Theme) {
+fn status(frame: &mut Frame, area: Rect, state: &State, mux: &dyn Mux, theme: &Theme) {
     if let Some(message) = &state.message {
         frame.render_widget(
             Paragraph::new(format!("Error: {message}"))
@@ -92,7 +101,7 @@ fn status(frame: &mut Frame, area: Rect, state: &State, theme: &Theme) {
     };
     let target = state
         .hovered()
-        .map(|t| t.at(state.focus))
+        .map(|t| mux.display_target(&state.tree, &t, state.focus))
         .unwrap_or_default();
     let line = Line::from(vec![
         Span::styled(format!(" {mode} "), Style::from(style)),

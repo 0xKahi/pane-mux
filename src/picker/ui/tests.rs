@@ -1,12 +1,13 @@
 use super::*;
 use crate::{
     config::{Config, keymap::Keymap, preset, settings::PreviewPosition},
+    mux::{Current, Pane, Tree, Window},
     picker::{
         PickerOptions,
         action::{Action, Case},
         finder::Finder,
     },
-    tmux::{Current, FakeTmux, Pane, Tree, Window, sample_tree},
+    tmux::{FakeTmux, sample_tree},
 };
 use ratatui::{
     Terminal,
@@ -79,12 +80,18 @@ fn fixture() -> (State, FakeTmux, Theme, PickerConfig, Keymap) {
     (state, fake, theme, config, keymap)
 }
 
-fn draw(state: &mut State, theme: &Theme, config: &PickerConfig) -> Terminal<TestBackend> {
-    draw_width(state, theme, config, 80)
+fn draw(
+    state: &mut State,
+    fake: &FakeTmux,
+    theme: &Theme,
+    config: &PickerConfig,
+) -> Terminal<TestBackend> {
+    draw_width(state, fake, theme, config, 80)
 }
 
 fn draw_width(
     state: &mut State,
+    fake: &FakeTmux,
     theme: &Theme,
     config: &PickerConfig,
     width: u16,
@@ -95,7 +102,7 @@ fn draw_width(
             let hints = heights(frame.area(), config);
             state.list_height = hints.list;
             state.preview_height = hints.preview;
-            render(frame, state, theme, config);
+            render(frame, state, fake, theme, config);
         })
         .unwrap();
     terminal
@@ -114,9 +121,9 @@ fn add_row_indicators(state: &mut State) {
 
 #[test]
 fn row_indicators_inline_and_hover_colours() {
-    let (mut state, _, mut theme, config, _) = fixture();
+    let (mut state, fake, mut theme, config, _) = fixture();
     add_row_indicators(&mut state);
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!("row_indicators", terminal.backend());
     assert!(terminal.backend().to_string().contains("1: editor  󰦤 2"));
     assert!(terminal.backend().to_string().contains("1: zsh  󱣱"));
@@ -139,7 +146,7 @@ fn row_indicators_inline_and_hover_colours() {
     for (reversed, bg) in [(true, None), (false, Some(Color::Blue))] {
         theme.indicator.current.reversed = Some(reversed);
         theme.indicator.current.bg = bg;
-        let terminal = draw(&mut state, &theme, &config);
+        let terminal = draw(&mut state, &fake, &theme, &config);
         let buffer = terminal.backend().buffer();
         let mode = &buffer[mode_pos];
         let name = &buffer[(areas.columns[2].x + 10, mode_pos.1)];
@@ -152,11 +159,11 @@ fn row_indicators_inline_and_hover_colours() {
 
 #[test]
 fn row_indicator_before_find_badge() {
-    let (mut state, _, theme, config, _) = fixture();
+    let (mut state, fake, theme, config, _) = fixture();
     add_row_indicators(&mut state);
     state.focus = Level::Window;
     state.finder = Some(Finder::new("editor".into(), Case::Sensitive).unwrap());
-    let terminal = draw_width(&mut state, &theme, &config, 110);
+    let terminal = draw_width(&mut state, &fake, &theme, &config, 110);
     insta::assert_snapshot!(terminal.backend());
     assert!(
         terminal
@@ -168,13 +175,13 @@ fn row_indicator_before_find_badge() {
 
 #[test]
 fn row_indicator_survives_clipping_before_cap() {
-    let (mut state, _, mut theme, config, _) = fixture();
+    let (mut state, fake, mut theme, config, _) = fixture();
     add_row_indicators(&mut state);
     state.focus = Level::Window;
     state.tree.sessions[0].windows[0].name = "界".repeat(40);
     theme.indicator.padding.open = "<".into();
     theme.indicator.padding.close = ">".into();
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
     let area = Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[1]);
     let buffer = terminal.backend().buffer();
@@ -189,14 +196,14 @@ fn row_indicator_survives_clipping_before_cap() {
 
 #[test]
 fn hidden_row_indicators_leave_no_gap_and_modes_are_filtered() {
-    let (mut state, _, mut theme, config, _) = fixture();
+    let (mut state, fake, mut theme, config, _) = fixture();
     add_row_indicators(&mut state);
     theme.icons.stashed.text.clear();
     theme.icons.copy_mode.text.clear();
     state.focus = Level::Pane;
     state.pane = Some("%13".into());
     state.finder = Some(Finder::new("zsh".into(), Case::Sensitive).unwrap());
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!("hidden_row_indicators", terminal.backend());
     assert!(terminal.backend().to_string().contains("1: zsh [1/1]"));
     theme.icons.copy_mode.text = "M".into();
@@ -207,7 +214,7 @@ fn hidden_row_indicators_leave_no_gap_and_modes_are_filtered() {
     ] {
         state.tree.sessions[0].windows[0].panes[1].mode = mode.into();
         assert!(
-            draw(&mut state, &theme, &config)
+            draw(&mut state, &fake, &theme, &config)
                 .backend()
                 .to_string()
                 .contains(expected)
@@ -217,7 +224,7 @@ fn hidden_row_indicators_leave_no_gap_and_modes_are_filtered() {
 
 #[test]
 fn row_indicators_are_safe_on_tiny_terminals() {
-    let (mut state, _, theme, config, _) = fixture();
+    let (mut state, fake, theme, config, _) = fixture();
     add_row_indicators(&mut state);
     state.focus = Level::Window;
     state.finder = Some(Finder::new("editor".into(), Case::Sensitive).unwrap());
@@ -225,7 +232,7 @@ fn row_indicators_are_safe_on_tiny_terminals() {
         for height in 0..5 {
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
             terminal
-                .draw(|frame| render(frame, &state, &theme, &config))
+                .draw(|frame| render(frame, &state, &fake, &theme, &config))
                 .unwrap();
         }
     }
@@ -238,11 +245,11 @@ fn cut_marker_independent_of_hover_and_current() {
         ("cut_hovered", "%13", "%13", false),
         ("cut_hovered_current", "%12", "%12", true),
     ] {
-        let (mut state, _, theme, config, _) = fixture();
+        let (mut state, fake, theme, config, _) = fixture();
         state.focus = Level::Pane;
         state.pane = Some(pane.into());
         state.cut = Some(cut_id.into());
-        let terminal = draw(&mut state, &theme, &config);
+        let terminal = draw(&mut state, &fake, &theme, &config);
         insta::assert_snapshot!(name, terminal.backend());
         let area = layout::areas(Rect::new(0, 0, 80, 24), &config).columns[2];
         let y = area.y + if cut_id == "%12" { 1 } else { 2 };
@@ -267,12 +274,12 @@ fn cut_marker_independent_of_hover_and_current() {
 
 #[test]
 fn cut_badge_right_aligned_and_custom_marker_style() {
-    let (mut state, _, mut theme, config, _) = fixture();
+    let (mut state, fake, mut theme, config, _) = fixture();
     state.cut = Some("%13".into());
     theme.marker.symbol = "!".into();
     theme.marker.cut.fg = Some(Color::Yellow);
     theme.marker.cut.bg = Some(Color::Yellow);
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
     let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
     let buffer = terminal.backend().buffer();
@@ -292,24 +299,24 @@ fn cut_badge_right_aligned_and_custom_marker_style() {
 
 #[test]
 fn cut_badge_uses_live_target_and_tiny_terminals_are_safe() {
-    let (mut state, _, theme, config, _) = fixture();
+    let (mut state, fake, theme, config, _) = fixture();
     state.cut = Some("%13".into());
     state.tree.sessions[0].name = "renamed".into();
     state.tree.sessions[0].windows[0].index = 8;
     state.tree.sessions[0].windows[0].panes[1].index = 9;
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     assert!(terminal.backend().to_string().contains("cut renamed:8.9"));
     for width in 0..15 {
         let mut terminal = Terminal::new(TestBackend::new(width, 3)).unwrap();
         terminal
-            .draw(|frame| render(frame, &state, &theme, &config))
+            .draw(|frame| render(frame, &state, &fake, &theme, &config))
             .unwrap();
     }
 }
 
 #[test]
 fn find_highlight_and_badge_follow_focus() {
-    let (mut state, _, theme, config, _) = fixture();
+    let (mut state, fake, theme, config, _) = fixture();
     state.tree = sample_tree(&["logs", "api", "blog"]);
     state.session = Some(state.tree.sessions[2].id.clone());
     state.tree.sessions[2].windows[0].name = "logs".into();
@@ -317,7 +324,7 @@ fn find_highlight_and_badge_follow_focus() {
     state.window = Some(state.tree.sessions[2].windows[0].id.clone());
     state.pane = Some(state.tree.sessions[2].windows[0].panes[0].id.clone());
     state.finder = Some(Finder::new("log".into(), Case::Sensitive).unwrap());
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
     let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
     let buffer = terminal.backend().buffer();
@@ -352,11 +359,11 @@ fn find_highlight_and_badge_follow_focus() {
 
 #[test]
 fn find_highlights_only_first_name_match_after_index() {
-    let (mut state, _, theme, config, _) = fixture();
+    let (mut state, fake, theme, config, _) = fixture();
     state.focus = Level::Window;
     state.tree.sessions[0].windows[0].name = "élog log".into();
     state.finder = Some(Finder::new("log|1".into(), Case::Sensitive).unwrap());
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     let area = layout::areas(Rect::new(0, 0, 80, 24), &config).columns[1];
     let buffer = terminal.backend().buffer();
     let start = area.x + 7;
@@ -371,12 +378,12 @@ fn find_highlights_only_first_name_match_after_index() {
 
 #[test]
 fn find_badge_and_caps_survive_long_wide_names() {
-    let (mut state, _, mut theme, config, _) = fixture();
+    let (mut state, fake, mut theme, config, _) = fixture();
     theme.indicator.padding.open = "<".into();
     theme.indicator.padding.close = ">".into();
     state.tree.sessions[0].name = format!("log{}", "界".repeat(40));
     state.finder = Some(Finder::new("log".into(), Case::Sensitive).unwrap());
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
     let area = Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[0]);
     let buffer = terminal.backend().buffer();
@@ -392,8 +399,8 @@ fn find_badge_and_caps_survive_long_wide_names() {
 
 #[test]
 fn bottom_50_layout_and_current_columns() {
-    let (mut state, _, theme, config, _) = fixture();
-    let terminal = draw(&mut state, &theme, &config);
+    let (mut state, fake, theme, config, _) = fixture();
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
     let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
     let buffer = terminal.backend().buffer();
@@ -434,18 +441,18 @@ fn bottom_50_layout_and_current_columns() {
 
 #[test]
 fn top_75_layout_with_switch_header() {
-    let (mut state, _, theme, mut config, _) = fixture();
+    let (mut state, fake, theme, mut config, _) = fixture();
     config.preview_position = PreviewPosition::Top;
     config.preview_ratio = 75;
     state.options.header = "[Switch]".into();
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
 }
 
 #[test]
 fn coloured_preview_preserves_ansi_styles() {
-    let (mut state, _, theme, config, _) = fixture();
-    let terminal = draw(&mut state, &theme, &config);
+    let (mut state, fake, theme, config, _) = fixture();
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
     let area = layout::areas(Rect::new(0, 0, 80, 24), &config).preview;
     let red = &terminal.backend().buffer()[(area.x + 1, area.y + 1)];
@@ -461,7 +468,7 @@ fn own_pane_placeholder() {
     let (mut state, fake, theme, config, _) = fixture();
     state.suppressed_pane = Some("%12".into());
     state.refresh(&fake).unwrap();
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
 }
 
@@ -470,7 +477,7 @@ fn empty_tree_placeholder() {
     let (mut state, _, theme, config, _) = fixture();
     let fake = FakeTmux::new(Tree::default());
     state.refresh(&fake).unwrap();
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
 }
 
@@ -478,7 +485,7 @@ fn empty_tree_placeholder() {
 fn which_popup_shows_remaining_keys() {
     let (mut state, fake, theme, config, keymap) = fixture();
     press(&mut state, &fake, &keymap, "g");
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
 }
 
@@ -488,7 +495,7 @@ fn input_popup_with_cursor() {
     for key in ["a", "n", "o", "t", "e", "s"] {
         press(&mut state, &fake, &keymap, key);
     }
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
     let buffer = terminal.backend().buffer();
     let cursor = &buffer[(16, 11)];
@@ -509,7 +516,7 @@ fn input_cursor_uses_selected_style() {
     for key in ["a", "n", "o", "t", "e", "s"] {
         press(&mut state, &fake, &keymap, key);
     }
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     let cursor = &terminal.backend().buffer()[(16, 11)];
     assert_eq!(cursor.symbol(), " ");
     assert_eq!(cursor.bg, Color::Blue);
@@ -522,7 +529,7 @@ fn confirm_popup() {
     for key in ["j", "d", "d"] {
         press(&mut state, &fake, &keymap, key);
     }
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
 }
 
@@ -533,15 +540,15 @@ fn help_popup_scrolls_to_cursor() {
     for _ in 0..22 {
         press(&mut state, &fake, &keymap, "j");
     }
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
 }
 
 #[test]
 fn error_message_uses_notify_style() {
-    let (mut state, _, theme, config, _) = fixture();
+    let (mut state, fake, theme, config, _) = fixture();
     state.message = Some("duplicate session: work".into());
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
     assert_eq!(
         terminal.backend().buffer()[(0, 23)].fg,
@@ -551,11 +558,11 @@ fn error_message_uses_notify_style() {
 
 #[test]
 fn heights_match_render_regions_for_both_positions() {
-    let (mut state, _, theme, mut config, _) = fixture();
+    let (mut state, fake, theme, mut config, _) = fixture();
     for (position, ratio) in [(PreviewPosition::Bottom, 50), (PreviewPosition::Top, 75)] {
         config.preview_position = position;
         config.preview_ratio = ratio;
-        let terminal = draw(&mut state, &theme, &config);
+        let terminal = draw(&mut state, &fake, &theme, &config);
         let area = Rect::new(0, 0, 80, 24);
         let regions = layout::areas(area, &config);
         let hints = heights(area, &config);
@@ -589,15 +596,15 @@ fn long_columns_scroll_selected_row_into_view() {
     let fake = FakeTmux::new(sample_tree(&refs));
     state.refresh(&fake).unwrap();
     state.apply(&Action::Arrow(crate::picker::action::Step::Bot), &fake);
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
 }
 
 #[test]
 fn preview_scroll_uses_line_offset() {
-    let (mut state, _, theme, config, _) = fixture();
+    let (mut state, fake, theme, config, _) = fixture();
     state.preview.scroll = 2;
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     let area = layout::areas(Rect::new(0, 0, 80, 24), &config).preview;
     assert_eq!(
         terminal.backend().buffer()[(area.x + 1, area.y + 1)].symbol(),
@@ -612,7 +619,7 @@ fn tiny_terminals_do_not_panic() {
     for (width, height) in [(1, 1), (2, 2), (8, 4)] {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal
-            .draw(|frame| render(frame, &state, &theme, &config))
+            .draw(|frame| render(frame, &state, &fake, &theme, &config))
             .unwrap();
     }
     assert_eq!(
@@ -626,7 +633,7 @@ fn tiny_terminals_do_not_panic() {
 
 #[test]
 fn hovered_caps_use_highlight_colour_at_inner_edges() {
-    let (mut state, _, mut theme, config, _) = fixture();
+    let (mut state, fake, mut theme, config, _) = fixture();
     for (reversed, fg, bg, expected) in [
         (true, Some(Color::Cyan), Some(Color::Blue), Color::Cyan),
         (true, None, None, Color::Reset),
@@ -636,7 +643,7 @@ fn hovered_caps_use_highlight_colour_at_inner_edges() {
         theme.indicator.current.reversed = Some(reversed);
         theme.indicator.current.fg = fg;
         theme.indicator.current.bg = bg;
-        let terminal = draw(&mut state, &theme, &config);
+        let terminal = draw(&mut state, &fake, &theme, &config);
         let area =
             Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[0]);
         let buffer = terminal.backend().buffer();
@@ -654,14 +661,14 @@ fn hovered_caps_use_highlight_colour_at_inner_edges() {
 
 #[test]
 fn custom_caps_and_long_names_keep_right_edge() {
-    let (mut state, _, _, config, _) = fixture();
+    let (mut state, fake, _, config, _) = fixture();
     let theme = Theme::from_toml(
         &preset::theme(),
         Some("[indicator]\npadding = { open = '<', close = '>' }"),
     )
     .unwrap();
     state.tree.sessions[0].name = "a very long session name that must be clipped".into();
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
     let area = Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[0]);
     assert_eq!(terminal.backend().buffer()[(area.x, area.y)].symbol(), "<");
@@ -673,11 +680,11 @@ fn custom_caps_and_long_names_keep_right_edge() {
 
 #[test]
 fn wide_caps_reserve_display_width_and_plain_highlight_uses_spaces() {
-    let (mut state, _, mut theme, config, _) = fixture();
+    let (mut state, fake, mut theme, config, _) = fixture();
     theme.indicator.padding.open = "界".into();
     theme.indicator.padding.close = "界>".into();
     state.tree.sessions[0].name = "界".repeat(40);
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     let area = Block::bordered().inner(layout::areas(Rect::new(0, 0, 80, 24), &config).columns[0]);
     assert_eq!(terminal.backend().buffer()[(area.x, area.y)].symbol(), "界");
     assert_eq!(
@@ -690,7 +697,7 @@ fn wide_caps_reserve_display_width_and_plain_highlight_uses_spaces() {
     );
     theme.indicator.current.reversed = Some(false);
     theme.indicator.current.bg = None;
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     assert_eq!(terminal.backend().buffer()[(area.x, area.y)].symbol(), " ");
     assert_eq!(
         terminal.backend().buffer()[(area.right() - 1, area.y)].symbol(),
@@ -702,7 +709,7 @@ fn wide_caps_reserve_display_width_and_plain_highlight_uses_spaces() {
 fn unhovered_current_marker_is_magenta_but_name_keeps_base_colour() {
     let (mut state, fake, theme, config, keymap) = fixture();
     press(&mut state, &fake, &keymap, "j");
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(
         "unhovered_current_marker_is_magenta_but_name_is_unstyled",
         terminal.backend()
@@ -723,13 +730,13 @@ fn unhovered_current_marker_is_magenta_but_name_keeps_base_colour() {
 
 #[test]
 fn column_roles_follow_focus_and_cover_full_row_width() {
-    let (mut state, _, theme, config, _) = fixture();
+    let (mut state, fake, theme, config, _) = fixture();
     for (focus_index, focus) in [Level::Session, Level::Window, Level::Pane]
         .into_iter()
         .enumerate()
     {
         state.focus = focus;
-        let terminal = draw(&mut state, &theme, &config);
+        let terminal = draw(&mut state, &fake, &theme, &config);
         let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
         let buffer = terminal.backend().buffer();
         for (index, area) in areas.columns.into_iter().enumerate() {
@@ -773,12 +780,12 @@ fn column_roles_follow_focus_and_cover_full_row_width() {
 
 #[test]
 fn parent_current_and_preview_are_distinct_style_overlays() {
-    let (mut state, _, mut theme, config, _) = fixture();
+    let (mut state, fake, mut theme, config, _) = fixture();
     theme.indicator.parent.bold = Some(true);
     theme.indicator.current.italic = Some(true);
     theme.indicator.preview.dim = Some(true);
     state.focus = Level::Window;
-    let terminal = draw(&mut state, &theme, &config);
+    let terminal = draw(&mut state, &fake, &theme, &config);
     insta::assert_snapshot!(terminal.backend());
     let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
     for (area, expected) in areas.columns.into_iter().zip([
@@ -795,8 +802,8 @@ fn parent_current_and_preview_are_distinct_style_overlays() {
 
 #[test]
 fn unhovered_names_use_level_text_colours() {
-    let (mut state, _, theme, config, _) = fixture();
-    let terminal = draw(&mut state, &theme, &config);
+    let (mut state, fake, theme, config, _) = fixture();
+    let terminal = draw(&mut state, &fake, &theme, &config);
     let areas = layout::areas(Rect::new(0, 0, 80, 24), &config);
     for (area, expected, icon_fg) in [
         (

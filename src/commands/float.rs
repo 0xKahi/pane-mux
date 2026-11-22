@@ -9,7 +9,7 @@ use anyhow::{Context, Result, ensure};
 
 use super::Outcome;
 use crate::tmux::{
-    Tmux,
+    FloatMux,
     model::{FloatGeometry, FloatPane, FloatWindow},
 };
 
@@ -59,7 +59,7 @@ struct Source {
     state: FloatWindow,
 }
 
-fn resolve(target: Option<&str>, tmux: &dyn Tmux, inside: bool) -> Result<Source> {
+fn resolve(target: Option<&str>, tmux: &dyn FloatMux, inside: bool) -> Result<Source> {
     let pane = match target {
         Some(target) => tmux.resolve_pane(target)?,
         None => {
@@ -92,7 +92,7 @@ fn resolve(target: Option<&str>, tmux: &dyn Tmux, inside: bool) -> Result<Source
 }
 
 /// Return the owned stash session and matching window, rejecting a name collision.
-fn find_stash(tmux: &dyn Tmux, source: &str) -> Result<(Option<String>, Option<String>)> {
+fn find_stash(tmux: &dyn FloatMux, source: &str) -> Result<(Option<String>, Option<String>)> {
     let tree = tmux.tree()?;
     let Some(session) = tree.sessions.iter().find(|s| s.name == "pmux") else {
         return Ok((None, None));
@@ -109,7 +109,7 @@ fn find_stash(tmux: &dyn Tmux, source: &str) -> Result<(Option<String>, Option<S
     Ok((Some(session.id.clone()), None))
 }
 
-fn create_stash(tmux: &dyn Tmux, source: &Source, session: Option<&str>) -> Result<String> {
+fn create_stash(tmux: &dyn FloatMux, source: &Source, session: Option<&str>) -> Result<String> {
     let text = format!("{} — pane-mux float unstash {}", source.name, source.window);
     let quoted = format!("'{}'", text.replace('\'', "'\\''"));
     let command = format!("printf '%s\\n' {quoted}; exec tail -f /dev/null");
@@ -134,10 +134,10 @@ fn create_stash(tmux: &dyn Tmux, source: &Source, session: Option<&str>) -> Resu
 
 fn command(
     target: Option<&str>,
-    tmux: &dyn Tmux,
-    operation: impl FnOnce(&Source, &dyn Tmux) -> Result<()>,
+    tmux: &dyn FloatMux,
+    operation: impl FnOnce(&Source, &dyn FloatMux) -> Result<()>,
 ) -> Result<Outcome> {
-    let inside = std::env::var_os("TMUX").is_some();
+    let inside = tmux.in_client();
     ensure!(
         target.is_some() || inside,
         "float requires a target outside tmux"
@@ -150,7 +150,7 @@ fn command(
 }
 
 /// Stash all floating panes of the target window.
-pub fn run_stash(target: Option<&str>, tmux: &dyn Tmux) -> Result<Outcome> {
+pub fn run_stash(target: Option<&str>, tmux: &dyn FloatMux) -> Result<Outcome> {
     command(target, tmux, stash)
 }
 
@@ -185,7 +185,7 @@ fn stored(p: &FloatPane, size: Option<(i32, i32)>) -> Result<FloatGeometry> {
     })
 }
 
-fn save(tmux: &dyn Tmux, p: &FloatPane, source: &Source) -> Result<()> {
+fn save(tmux: &dyn FloatMux, p: &FloatPane, source: &Source) -> Result<()> {
     let g = FloatGeometry::capture(p);
     for (key, value) in [
         ("@pmux_x", g.x),
@@ -202,7 +202,7 @@ fn save(tmux: &dyn Tmux, p: &FloatPane, source: &Source) -> Result<()> {
     Ok(())
 }
 
-fn stash_windows(tmux: &dyn Tmux, source: &str) -> Result<(Option<String>, Vec<String>)> {
+fn stash_windows(tmux: &dyn FloatMux, source: &str) -> Result<(Option<String>, Vec<String>)> {
     let (session, _) = find_stash(tmux, source)?;
     let mut windows = Vec::new();
     if let Some(id) = &session {
@@ -233,7 +233,7 @@ fn attempt(errors: &mut Vec<String>, pane: &str, f: impl FnOnce() -> Result<()>)
     }
 }
 
-fn window_exists(tmux: &dyn Tmux, window: &str) -> Result<bool> {
+fn window_exists(tmux: &dyn FloatMux, window: &str) -> Result<bool> {
     Ok(tmux
         .tree()?
         .sessions
@@ -243,7 +243,7 @@ fn window_exists(tmux: &dyn Tmux, window: &str) -> Result<bool> {
 }
 
 /// Refresh after cleanup: dummies must not influence toggle or geometry capture.
-fn clean(source: &Source, tmux: &dyn Tmux) -> Result<Source> {
+fn clean(source: &Source, tmux: &dyn FloatMux) -> Result<Source> {
     let (_, mut windows) = stash_windows(tmux, &source.window)?;
     windows.push(source.window.clone());
     for window in windows {
@@ -260,7 +260,7 @@ fn clean(source: &Source, tmux: &dyn Tmux) -> Result<Source> {
     })
 }
 
-fn move_float(tmux: &dyn Tmux, pane: &str, window: &str, g: FloatGeometry) -> Result<()> {
+fn move_float(tmux: &dyn FloatMux, pane: &str, window: &str, g: FloatGeometry) -> Result<()> {
     let dummy = tmux.new_dummy_float(
         window,
         &g.width.to_string(),
@@ -275,7 +275,7 @@ fn move_float(tmux: &dyn Tmux, pane: &str, window: &str, g: FloatGeometry) -> Re
     result
 }
 
-fn stash(source: &Source, tmux: &dyn Tmux) -> Result<()> {
+fn stash(source: &Source, tmux: &dyn FloatMux) -> Result<()> {
     let source = clean(source, tmux)?;
     let (session, windows) = stash_windows(tmux, &source.window)?;
     let mut floats: Vec<_> = source.state.panes.iter().filter(|p| p.floating).collect();
@@ -317,11 +317,11 @@ fn stash(source: &Source, tmux: &dyn Tmux) -> Result<()> {
 }
 
 /// Restore all stashed panes for the target window.
-pub fn run_unstash(target: Option<&str>, tmux: &dyn Tmux) -> Result<Outcome> {
+pub fn run_unstash(target: Option<&str>, tmux: &dyn FloatMux) -> Result<Outcome> {
     command(target, tmux, unstash)
 }
 
-fn unstash(source: &Source, tmux: &dyn Tmux) -> Result<()> {
+fn unstash(source: &Source, tmux: &dyn FloatMux) -> Result<()> {
     let source = clean(source, tmux)?;
     let (_, windows) = stash_windows(tmux, &source.window)?;
     let mut panes = Vec::new();
@@ -376,11 +376,11 @@ fn unstash(source: &Source, tmux: &dyn Tmux) -> Result<()> {
 }
 
 /// Stash when any floats exist (including hidden by zoom), otherwise unstash.
-pub fn run_toggle(target: Option<&str>, tmux: &dyn Tmux) -> Result<Outcome> {
+pub fn run_toggle(target: Option<&str>, tmux: &dyn FloatMux) -> Result<Outcome> {
     command(target, tmux, toggle)
 }
 
-fn toggle(source: &Source, tmux: &dyn Tmux) -> Result<()> {
+fn toggle(source: &Source, tmux: &dyn FloatMux) -> Result<()> {
     let source = clean(source, tmux)?;
     if source.state.panes.iter().any(|p| p.floating) {
         stash(&source, tmux)
@@ -392,9 +392,12 @@ fn toggle(source: &Source, tmux: &dyn Tmux) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tmux::{Current, FakeTmux, sample_tree};
+    use crate::{
+        mux::{Current, Mux},
+        tmux::{FakeTmux, sample_tree},
+    };
 
-    fn source(tmux: &dyn Tmux) -> Source {
+    fn source(tmux: &dyn FloatMux) -> Source {
         resolve(Some("%0"), tmux, false).unwrap()
     }
 
