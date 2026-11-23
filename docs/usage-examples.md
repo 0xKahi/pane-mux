@@ -28,31 +28,43 @@ It starts with the cursor on the session that holds the cut pane. Press `p` to p
 pane-mux uses Rex when `REX_BLOCK` is non-blank and `TMUX` is unset. Set
 `PANE_MUX_BACKEND=rex` to force Rex, or `PANE_MUX_BACKEND=tmux` to force tmux.
 
-Add these actions to your [Rex `init.lua`](https://www.superlogical.com/rex/docs/customize/config.md).
-Make sure the Rex terminal's login-shell PATH finds your pane-mux build, or
-replace `"pane-mux"` in `argv` with its absolute path. Reload the Rex config,
-then use the shortcuts or find the actions by title in the command palette.
+Add these bindings to your [Rex `init.lua`](https://www.superlogical.com/rex/docs/customize/config.md).
+PATH comes from the login shell environment, not `~/.zshrc`. If pane-mux is
+only on PATH via `~/.zshrc`, set `pane_mux` below to the absolute path of the
+executable. Reload the Rex config, then press `Ctrl-b` followed by `o` to
+switch sessions or `m` to move a pane. These function bindings don't appear
+in the command palette.
 
 ```lua
-rex.bind('ctrl+b>o', function(ctx)
+local pane_mux = 'pane-mux'
+
+local function open_picker(ctx, command)
   rex.session.new_layer({
+    session_id = ctx.session_id,
     bounds = { 0.15, 0.15, 0.7, 0.7 },
     focus = true,
     layout = rex.layout.block({
       flavor = 'com.superlogical.terminal.shell',
-      options = {
-        command = { 'pane-mux', 'switch-session' },
-        cwd = get_cwd(ctx.block_id),
-      },
+      options = { command = command },
     }),
   })
   return true
+end
+
+rex.bind('ctrl+b>o', function(ctx)
+  return open_picker(ctx, { pane_mux, 'switch-session' })
+end)
+
+rex.bind('ctrl+b>m', function(ctx)
+  if not ctx.block_id then return false end
+  return open_picker(ctx, { pane_mux, 'move-pane', ctx.block_id })
 end)
 ```
 
-The floating block closes when pane-mux exits. The picker shows a placeholder
-when previewing its own block. The move action passes the source block ID
-before opening the float, so it moves the intended block, not the picker.
+The floating block closes when pane-mux exits normally. The picker shows a
+placeholder when previewing its own block. The move binding passes the
+source block ID before opening the float, so it moves the intended block,
+not the picker.
 
 For `switch-session` to change the app view, enable **Remote Control** under
 **Settings > General > Client Info**. If it's off or no app client is
