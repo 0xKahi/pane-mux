@@ -33,3 +33,7 @@ ci:
 # Opt-in tests against a private tmux server (tmux -L pane-mux-test)
 test-tmux:
     PANE_MUX_TMUX_TESTS=1 cargo test -- --test-threads=1
+
+# Opt-in live Rex test; creates and destroys its own sessions on REX_SERVER
+test-rex:
+    PANE_MUX_REX_TESTS=1 cargo test --test rex_integration -- --test-threads=1

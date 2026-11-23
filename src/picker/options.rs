@@ -1,6 +1,6 @@
 //! Options shared by picker commands and state.
 
-use crate::tmux::Level;
+use crate::mux::Level;
 
 /// Session ordering chosen by the command.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

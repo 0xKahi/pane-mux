@@ -1,7 +1,7 @@
 //! Owned prompt data; all text editing happens at the end of the input.
 
 use super::action::Case;
-use crate::{config::keymap::Chord, tmux::Level};
+use crate::{config::keymap::Chord, mux::Level};
 
 /// Operation to run when a name prompt is submitted.
 #[derive(Debug, Clone, PartialEq, Eq)]

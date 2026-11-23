@@ -1,0 +1,28 @@
+{
+  "principal": {
+    "kind": "peer",
+    "transport": "unix",
+    "display": "uid 1000",
+    "uid": 1000,
+    "gid": 1000,
+    "pid": 2002
+  },
+  "account": "user",
+  "endpoint": "unix:///tmp/rex-test/server.sock",
+  "pid": 2001,
+  "instance_id": "00000000-0000-7000-8000-000000000060",
+  "host_id": "00000000-0000-7000-8000-000000000061",
+  "started_at": "2025-01-01T00:00:00Z",
+  "rex_version": "0.1.0-preview.21",
+  "api_revision": 18,
+  "exit_empty": false,
+  "session_count": 3,
+  "log_path": "/home/user/.local/state/rex/server.log",
+  "tailscale": {
+    "state": "disabled",
+    "allow_tailnet_members": false
+  },
+  "session_id": "session:00000000-0000-7000-8000-000000000001",
+  "window_id": "window:00000000-0000-7000-8000-000000000025",
+  "block_id": "block:00000000-0000-7000-8000-0000006e22b7"
+}

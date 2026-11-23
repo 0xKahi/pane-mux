@@ -1,6 +1,6 @@
 //! Command-line interface definitions.
 
-use crate::tmux::Level;
+use crate::mux::Level;
 use clap::{Args, Parser, Subcommand};
 
 /// A yazi-style picker for tmux sessions, windows and panes.

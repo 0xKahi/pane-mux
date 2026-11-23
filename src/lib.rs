@@ -3,5 +3,7 @@
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod mux;
 pub mod picker;
+pub mod rex;
 pub mod tmux;

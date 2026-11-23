@@ -1,0 +1,2 @@
+Error: block target "nosuchblock" not found
+exit code: 3

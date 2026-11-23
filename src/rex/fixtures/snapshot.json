@@ -1,0 +1,221 @@
+{
+  "sessions": [
+    {
+      "active_window_id": "window:00000000-0000-7000-8000-000000000025",
+      "label": "work",
+      "session_id": "session:00000000-0000-7000-8000-000000000001",
+      "windows": [
+        {
+          "focused_block_id": "block:00000000-0000-7000-8000-000000000004",
+          "label": "editor",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-000000000004",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "vim"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000003"
+            },
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-000000000023",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "python"
+                }
+              ],
+              "kind": "floating",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000024"
+            }
+          ],
+          "window_id": "window:00000000-0000-7000-8000-000000000002"
+        },
+        {
+          "focused_block_id": "block:00000000-0000-7000-8000-000000000009",
+          "label": "logs",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-000000000009",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "bash"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000011"
+            }
+          ],
+          "window_id": "window:00000000-0000-7000-8000-000000000010"
+        },
+        {
+          "focused_block_id": "block:00000000-0000-7000-8000-000000000012",
+          "label": "build",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-000000000012",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "bash"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000014"
+            }
+          ],
+          "window_id": "window:00000000-0000-7000-8000-000000000013"
+        },
+        {
+          "focused_block_id": "block:00000000-0000-7000-8000-000000000027",
+          "label": "terminal",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-000000000027",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "bash"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000026"
+            },
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-0000006e22b7",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "terminal",
+                  "process_name": "python"
+                }
+              ],
+              "kind": "floating",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000029",
+              "state": "minimized"
+            }
+          ],
+          "window_id": "window:00000000-0000-7000-8000-000000000025"
+        }
+      ]
+    },
+    {
+      "active_window_id": "window:00000000-0000-7000-8000-000000000007",
+      "label": "notes",
+      "session_id": "session:00000000-0000-7000-8000-000000000005",
+      "windows": [
+        {
+          "focused_block_id": "block:00000000-0000-7000-8000-000000000006",
+          "label": "service",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-000000000006",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "bash"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000008"
+            }
+          ],
+          "window_id": "window:00000000-0000-7000-8000-000000000007"
+        },
+        {
+          "focused_block_id": "block:00000000-0000-7000-8000-000000000015",
+          "label": "dashboard",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-000000000015",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "bash"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000017"
+            }
+          ],
+          "window_id": "window:00000000-0000-7000-8000-000000000016"
+        },
+        {
+          "focused_block_id": "block:00000000-0000-7000-8000-000000000018",
+          "label": "frontend",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-000000000018",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "bash"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000020"
+            }
+          ],
+          "window_id": "window:00000000-0000-7000-8000-000000000019"
+        }
+      ]
+    },
+    {
+      "active_window_id": "window:00000000-0000-7000-8000-000000000032",
+      "label": "scratch",
+      "session_id": "session:00000000-0000-7000-8000-000000000030",
+      "windows": [
+        {
+          "focused_block_id": "block:00000000-0000-7000-8000-000000000031",
+          "label": "service",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-000000000031",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "vim"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000033"
+            }
+          ],
+          "window_id": "window:00000000-0000-7000-8000-000000000032"
+        },
+        {
+          "focused_block_id": "block:00000000-0000-7000-8000-000000000036",
+          "label": "󰆧 feature-demo",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-7000-8000-000000000036",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "bash"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:00000000-0000-7000-8000-000000000035"
+            }
+          ],
+          "window_id": "window:00000000-0000-7000-8000-000000000034"
+        }
+      ]
+    }
+  ]
+}

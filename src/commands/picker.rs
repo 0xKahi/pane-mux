@@ -3,13 +3,13 @@
 use super::Outcome;
 use crate::{
     config::Loaded,
+    mux::{Level, Mux},
     picker::{self, Exit, PickerOptions, SessionOrder},
-    tmux::{Level, Tmux},
 };
 use anyhow::Result;
 
 /// Open the picker and print the result after terminal cleanup.
-pub fn run(level: Option<Level>, tmux: &dyn Tmux, loaded: &Loaded) -> Result<Outcome> {
+pub fn run(level: Option<Level>, tmux: &dyn Mux, loaded: &Loaded) -> Result<Outcome> {
     let header = match level {
         Some(Level::Session) => "[Pick session]",
         Some(Level::Window) => "[Pick window]",
@@ -26,8 +26,12 @@ pub fn run(level: Option<Level>, tmux: &dyn Tmux, loaded: &Loaded) -> Result<Out
         tmux,
         loaded,
     )? {
-        Exit::Pick(target) => {
-            println!("{target}");
+        Exit::Pick {
+            target,
+            level,
+            tree,
+        } => {
+            println!("{}", tmux.target_string(&tree, &target, level));
             Ok(Outcome::Done)
         }
         Exit::Cancel => Ok(Outcome::Cancelled),

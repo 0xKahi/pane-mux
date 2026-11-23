@@ -1,0 +1,118 @@
+{
+  "clients": [
+    {
+      "client_id": "client:00000000-0000-7000-8000-000000000021",
+      "principal": {
+        "kind": "peer",
+        "transport": "unix",
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2000
+      },
+      "connected_at": "2025-01-01T00:00:01Z",
+      "connection_state": "connected"
+    },
+    {
+      "client_id": "client:00000000-0000-7000-8000-000000000022",
+      "info": {
+        "kind": "app",
+        "platform": "macos",
+        "name": "Rex",
+        "version": "0.1.0 (2061)",
+        "label": "test-mac"
+      },
+      "principal": {
+        "kind": "peer",
+        "transport": "unix",
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2000
+      },
+      "connected_at": "2025-01-01T00:00:02Z",
+      "connection_state": "connected",
+      "session_ids": [
+        "session:00000000-0000-7000-8000-000000000001",
+        "session:00000000-0000-7000-8000-000000000005",
+        "session:00000000-0000-7000-8000-000000000030"
+      ]
+    },
+    {
+      "client_id": "client:00000000-0000-7000-8000-000000000037",
+      "info": {
+        "kind": "cli",
+        "platform": "macos",
+        "name": "rex",
+        "version": "0.1.0-preview.21"
+      },
+      "principal": {
+        "kind": "peer",
+        "transport": "unix",
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2005
+      },
+      "connected_at": "2025-01-01T00:00:03Z",
+      "connection_state": "connected"
+    },
+    {
+      "client_id": "client:00000000-0000-7000-8000-000000000038",
+      "info": {
+        "kind": "cli",
+        "platform": "macos",
+        "name": "rex",
+        "version": "0.1.0-preview.21"
+      },
+      "principal": {
+        "kind": "peer",
+        "transport": "unix",
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2003
+      },
+      "connected_at": "2025-01-01T00:00:04Z",
+      "connection_state": "connected"
+    },
+    {
+      "client_id": "client:00000000-0000-7000-8000-000000000039",
+      "info": {
+        "kind": "cli",
+        "platform": "macos",
+        "name": "rex",
+        "version": "0.1.0-preview.21"
+      },
+      "principal": {
+        "kind": "peer",
+        "transport": "unix",
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2006
+      },
+      "connected_at": "2025-01-01T00:00:05Z",
+      "connection_state": "connected"
+    },
+    {
+      "client_id": "client:00000000-0000-7000-8000-000000000040",
+      "info": {
+        "kind": "cli",
+        "platform": "macos",
+        "name": "rex",
+        "version": "0.1.0-preview.21"
+      },
+      "principal": {
+        "kind": "peer",
+        "transport": "unix",
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2004
+      },
+      "connected_at": "2025-01-01T00:00:06Z",
+      "connection_state": "connected"
+    }
+  ]
+}

@@ -1,0 +1,148 @@
+{
+  "revision": 10,
+  "session_id": "session:00000000-0000-7000-8000-000000000041",
+  "label": "move-sandbox",
+  "active_window_id": "window:00000000-0000-7000-8000-000000000054",
+  "windows": [
+    {
+      "window_id": "window:00000000-0000-7000-8000-000000000043",
+      "label": "Source",
+      "focused_block_id": "block:00000000-0000-7000-8000-000000000042",
+      "layers": [
+        {
+          "layer_id": "layer:00000000-0000-7000-8000-000000000044",
+          "kind": "tiled",
+          "bounds": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "layout": {
+            "rect": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "block_id": "block:00000000-0000-7000-8000-000000000042"
+          },
+          "blocks": [
+            {
+              "block_id": "block:00000000-0000-7000-8000-000000000042",
+              "label": "shell",
+              "creator_name": "com.superlogical.terminal",
+              "flavor": "com.superlogical.terminal.shell",
+              "host_id": "00000000-0000-7000-8000-000000000061"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "window_id": "window:00000000-0000-7000-8000-000000000054",
+      "label": "Float target",
+      "focused_block_id": "block:00000000-0000-7000-8000-000000000045",
+      "layers": [
+        {
+          "layer_id": "layer:00000000-0000-7000-8000-000000000055",
+          "kind": "tiled",
+          "bounds": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "layout": {
+            "rect": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "split": {
+              "split_id": "split:00000000-0000-7000-8000-000000000057",
+              "direction": "horizontal",
+              "ratio": 0.5,
+              "before": {
+                "rect": [
+                  0,
+                  0,
+                  0.5,
+                  1
+                ],
+                "block_id": "block:00000000-0000-7000-8000-000000000053"
+              },
+              "after": {
+                "rect": [
+                  0.5,
+                  0,
+                  0.5,
+                  1
+                ],
+                "block_id": "block:00000000-0000-7000-8000-000000000045"
+              }
+            }
+          },
+          "blocks": [
+            {
+              "block_id": "block:00000000-0000-7000-8000-000000000053",
+              "label": "shell",
+              "creator_name": "com.superlogical.terminal",
+              "flavor": "com.superlogical.terminal.shell",
+              "host_id": "00000000-0000-7000-8000-000000000061"
+            },
+            {
+              "block_id": "block:00000000-0000-7000-8000-000000000045",
+              "label": "Sleeper",
+              "creator_name": "com.superlogical.terminal",
+              "flavor": "com.superlogical.terminal.shell",
+              "host_id": "00000000-0000-7000-8000-000000000061"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "client_id": "client:00000000-0000-7000-8000-000000000022",
+      "principal": {
+        "kind": "peer",
+        "transport": "unix",
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2000
+      },
+      "info": {
+        "kind": "app",
+        "platform": "macos",
+        "name": "Rex",
+        "version": "0.1.0 (2061)",
+        "label": "test-mac"
+      },
+      "connected_at": "2025-01-01T00:00:07Z",
+      "connection_state": "connected"
+    },
+    {
+      "client_id": "client:00000000-0000-7000-8000-000000000058",
+      "principal": {
+        "kind": "peer",
+        "transport": "unix",
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2011
+      },
+      "info": {
+        "kind": "cli",
+        "platform": "macos",
+        "name": "rex",
+        "version": "0.1.0-preview.21"
+      },
+      "connected_at": "2025-01-01T00:00:11Z",
+      "connection_state": "connected"
+    }
+  ]
+}
