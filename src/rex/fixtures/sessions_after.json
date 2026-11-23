@@ -1,0 +1,16 @@
+{
+  "sessions": [
+    {
+      "session_id": "session:01a1fa96-984e-7cf4-987f-c3267e96063a",
+      "label": "kahi"
+    },
+    {
+      "session_id": "session:01a1ff68-9419-7376-b92e-3b7fce14a5c8",
+      "label": "shuffle"
+    },
+    {
+      "session_id": "session:01a20565-b4f8-7806-9a75-80f4aff16fff",
+      "label": "shuffle-be"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "principal": {
+    "kind": "peer",
+    "transport": "unix",
+    "display": "uid 501",
+    "uid": 501,
+    "gid": 20,
+    "pid": 83584
+  },
+  "account": "kahi",
+  "endpoint": "unix:///Users/kahi/Library/Application%20Support/rex/server.sock",
+  "pid": 16978,
+  "instance_id": "19f9f2b6-4755-458a-9a32-6dda90637775",
+  "host_id": "8b284589-8e65-4da5-a15b-93b87673a13c",
+  "started_at": "2026-11-22T01:22:16.311307Z",
+  "rex_version": "0.1.0-preview.21",
+  "api_revision": 18,
+  "exit_empty": false,
+  "session_count": 3,
+  "log_path": "/Users/kahi/Library/Application Support/rex/servers/2e40f67bab03d20e54ebf9eb2360e05f30b3e98e8e6344574e20d47c29badb54.log",
+  "tailscale": {
+    "state": "disabled",
+    "allow_tailnet_members": false
+  },
+  "session_id": "session:01a1fa96-984e-7cf4-987f-c3267e96063a",
+  "window_id": "window:01a20544-6ba1-7562-90a1-a210ecad287e",
+  "block_id": "block:01a20544-961c-77fa-a9ed-4987cd6e22b7"
+}

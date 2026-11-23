@@ -10,7 +10,7 @@
 
 ---
 
-A yazi-style terminal picker for tmux sessions, windows, and panes, written in Rust. It provides a three-column tree, a pane preview, configurable key bindings, and themes, with picked tmux targets intended for shell scripting.
+A yazi-style terminal picker for tmux and Rex, written in Rust. It provides a three-column tree, a pane preview, configurable key bindings, and themes. Picked targets can be used in shell scripts.
 
 ![pane-mux demo](assets/pmux-demo.gif)
 
@@ -39,6 +39,37 @@ bind o popup -w 75% -h 75% -x C -y C -E 'pane-mux switch-session'
 Reload tmux (`tmux source-file ~/.tmux.conf`), then press `<prefix> o`.
 
 See [docs/usage-examples.md](docs/usage-examples.md) for more examples.
+
+## Backend selection
+
+Set `PANE_MUX_BACKEND=tmux` or `PANE_MUX_BACKEND=rex` to force a backend.
+Unset it or leave it empty for automatic detection:
+
+1. If `TMUX` is set, use tmux, even inside a Rex block.
+2. Otherwise, if `REX_BLOCK` is non-blank, use Rex.
+3. Otherwise, use tmux.
+
+Other override values are errors. The Rex backend requires `rex` on `PATH`
+and a running server with API revision 18 or newer. It honors `REX_SERVER`
+when set and never starts a server. The `float` commands are tmux-only; in
+Rex, use the built-in minimize instead.
+
+## Rex
+
+Run pane-mux from a Rex block, or add the [Rex key bindings](docs/usage-examples.md#open-pane-mux-in-a-rex-floating-block)
+to launch `switch-session` and `move-pane` in a floating block. The picker
+shows a placeholder instead of previewing its own block.
+
+To let `switch-session` change the app view, enable **Remote Control** in
+**Settings > General > Client Info**. If Remote Control is off or no app
+client is connected, pane-mux still focuses the target on the server, prints
+an enablement hint naming the target session to stderr, and exits 0.
+
+`picker` prints a full Rex ID (`session:<uuid>`, `window:<uuid>`, or
+`block:<uuid>`), which Rex commands accept directly. Moves stay in the same
+session: an attempted cross-session paste shows
+`rex does not allow moving panes to different session` and keeps the picker
+open. For floating blocks, use Rex's built-in minimize rather than `pane-mux float`.
 
 ## Configuration
 
@@ -75,8 +106,8 @@ See [docs/configuration.md](docs/configuration.md) for picker settings, key bind
 
 ## Commands
 
-- [`picker`](#pane-mux-picker---session--window--pane) - Pick a tmux target and print it to stdout
-- [`switch-session`](#pane-mux-switch-session) - Pick a tmux target and switch the current client to it
+- [`picker`](#pane-mux-picker---session--window--pane) - Pick a target and print it to stdout
+- [`switch-session`](#pane-mux-switch-session) - Pick a target and switch the app or client to it
 - [`move-pane`](#pane-mux-move-pane-target) - Move a pane to a picked destination
 - [`float`](#pane-mux-float-stashunstashtoggle-target) - Stash or restore a window's floating panes
 
@@ -84,9 +115,9 @@ For command help, run `pane-mux --help` or `pane-mux picker --help`.
 
 ### `pane-mux picker [--session|--window|--pane]`
 
-Prints exactly one tmux target after closing the UI: a session name,
-`session:window_index`, or `session:window_index.pane_index`. Without a level
-flag, the focused column determines the output. The UI uses stderr (or
+Prints exactly one target after closing the UI. In tmux, that's a session name,
+`session:window_index`, or `session:window_index.pane_index`; in Rex, it's a
+full ID. Without a level flag, the focused column determines the output. The UI uses stderr (or
 `/dev/tty` when stderr is redirected), leaving stdout available for scripts.
 
 Sessions are listed by name. Level flags are mutually exclusive:
@@ -98,13 +129,14 @@ With the panes column focused, `x` cuts the hovered pane; `x` again clears it, o
 - Windows column: prompt for a new window name in the hovered session.
 - Panes column: float the pane in the hovered window using `[floating-pane]` (requires tmux 3.8).
 
-Moves are detached. After a successful paste, the picker stays open, clears the cut buffer and selects the result. See [picker actions](docs/picker-actions.md#cut-and-paste) for restrictions and the last-pane edge case.
+The [Rex move limits](#rex) apply on the Rex backend. Moves do not switch
+sessions. After a successful paste, the picker stays open, clears the cut buffer and selects the result. See [picker actions](docs/picker-actions.md#cut-and-paste) for restrictions and the last-pane edge case.
 
 #### Options
 
-- `--session`: Print the picked session name.
-- `--window`: Print the picked window as `session:window_index`.
-- `--pane`: Print the picked pane as `session:window_index.pane_index`.
+- `--session`: Print the picked session (tmux name or Rex session ID).
+- `--window`: Print the picked window (tmux `session:window_index` or Rex window ID).
+- `--pane`: Print the picked pane (tmux `session:window_index.pane_index` or Rex block ID).
 
 #### Examples
 
@@ -115,10 +147,11 @@ selected=$(pane-mux picker --session) && tmux switch-client -t "$selected"
 
 ### `pane-mux switch-session`
 
-Requires tmux and switches the current client to the picked target, including
-its window and pane when selected. It prints no target.
+Runs inside tmux or Rex and switches to the picked target, including its
+window and pane when selected. It prints no target. In Rex, sessions are
+listed current first, then by pane-mux's switch history, then in Rex order.
 
-Sessions are listed current first, then most recently attached on the tmux
+In tmux, sessions are listed current first, then most recently attached on the tmux
 server. Ties are ordered by name; never-attached sessions come last, also by
 name. The cursor opens on the session below the current one (the most recently
 used other session), so `<Enter>` right away switches back to it; with no other
@@ -134,9 +167,9 @@ bind o popup -w 75% -h 75% -x C -y C -E 'pane-mux switch-session'
 
 ### `pane-mux move-pane [TARGET]`
 
-Opens the picker with `[Move]` and the specified pane already cut and locked. `TARGET` accepts tmux pane targets such as `work:1.2` or `%17`; omitting it uses the current pane and requires running inside tmux. An unknown target or no target outside tmux is an error (exit 2).
+Opens the picker with `[Move]` and the specified pane already cut and locked. `TARGET` accepts tmux pane targets such as `work:1.2` or `%17`, or Rex block IDs and ID suffixes on Rex. Omitting it uses the current pane and requires running inside tmux or Rex. An unknown target or no target outside either is an error (exit 2).
 
-Use `p` with the same destinations as picker cut/paste above. A successful paste closes the picker and exits 0 without printing a target; `q` without pasting exits 130. Cancelled prompts, same-window paste and failed moves keep the picker open.
+Use `p` with the same destinations as picker cut/paste above, subject to the [Rex move limits](#rex). A successful paste closes the picker and exits 0 without printing a target; `q` without pasting exits 130. Cancelled prompts, same-window paste and failed moves keep the picker open.
 
 #### Examples
 
@@ -153,7 +186,7 @@ Reload tmux (`tmux source-file ~/.tmux.conf`), then press `<prefix> M`.
 pane-mux move-pane work:1.2
 ```
 
-Moves are detached, not followed by a client switch. Empty source windows and sessions close normally: moving the last pane of the attached session destroys it, and with `detach-on-destroy on` the client detaches and the popup closes. Floating paste requires tmux 3.8; other paste destinations do not.
+In tmux, moves are detached, not followed by a client switch. Empty source windows and sessions close normally: moving the last pane of the attached session destroys it, and with `detach-on-destroy on` the client detaches and the popup closes. Floating paste requires tmux 3.8; other paste destinations do not.
 
 ### `pane-mux float stash|unstash|toggle [TARGET]`
 
@@ -194,7 +227,7 @@ Unstash removes the emptied stash window; restoring the last stash also removes 
 
 | Exit code | Meaning |
 | --- | --- |
-| 0 | Picked successfully (and switched for `switch-session`), moved with `move-pane`, or completed a `float` action (including nothing to stash/unstash) |
+| 0 | Picked successfully (including the Rex `switch-session` fallback), moved with `move-pane`, or completed a `float` action (including nothing to stash/unstash) |
 | 130 | Cancelled without picking or pasting in `move-pane` |
 | 2 | Error or invalid command-line usage |
 

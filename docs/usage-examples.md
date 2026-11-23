@@ -23,6 +23,59 @@ pane-mux move-pane '%17'
 
 It starts with the cursor on the session that holds the cut pane. Press `p` to paste using the focused column as described in [picker actions](picker-actions.md#cut-and-paste). A successful paste closes the picker with exit 0 and no target output; `q` without pasting exits 130. Unknown targets, or omitting the target outside tmux, exit 2. Cancelled prompts, failed moves and same-window paste keep the picker open. Prefer the popup binding: running directly in the source pane moves the shell running the picker too.
 
+## open pane-mux in a Rex floating block
+
+pane-mux uses Rex when `REX_BLOCK` is non-blank and `TMUX` is unset. Set
+`PANE_MUX_BACKEND=rex` to force Rex, or `PANE_MUX_BACKEND=tmux` to force tmux.
+
+Add these actions to your [Rex `init.lua`](https://www.superlogical.com/rex/docs/customize/config.md).
+Make sure the Rex terminal's login-shell PATH finds your pane-mux build, or
+replace `"pane-mux"` in `argv` with its absolute path. Reload the Rex config,
+then use the shortcuts or find the actions by title in the command palette.
+
+```lua
+rex.bind('ctrl+b>o', function(ctx)
+  rex.session.new_layer({
+    bounds = { 0.15, 0.15, 0.7, 0.7 },
+    focus = true,
+    layout = rex.layout.block({
+      flavor = 'com.superlogical.terminal.shell',
+      options = {
+        command = { 'pane-mux', 'switch-session' },
+        cwd = get_cwd(ctx.block_id),
+      },
+    }),
+  })
+  return true
+end)
+```
+
+The floating block closes when pane-mux exits. The picker shows a placeholder
+when previewing its own block. The move action passes the source block ID
+before opening the float, so it moves the intended block, not the picker.
+
+For `switch-session` to change the app view, enable **Remote Control** under
+**Settings > General > Client Info**. If it's off or no app client is
+connected, the picked window or block is still focused on the server.
+pane-mux prints a hint naming the target session to stderr and exits 0.
+
+The standalone picker prints full Rex IDs. For example, pick a block and
+focus it from a Rex shell:
+
+```sh
+block=$(pane-mux picker --pane) &&
+  env -u REX_SESSION -u REX_BLOCK rex -S "$REX_SERVER" --autostart=false block focus "$block"
+```
+
+Clearing the inherited block and session makes Rex resolve the ID across
+sessions. This focuses the block on the server; use `switch-session` to
+change which session the app shows.
+
+Paste into a new window or float into another window in the same session.
+Cross-session paste (including paste from the sessions column) shows
+`rex does not allow moving panes to different session` and keeps the picker
+open. `pane-mux float` is tmux-only; in Rex, use **Minimize Floating Window**.
+
 ## stash and unstash floating panes
 
 Requires tmux 3.8. Add to `~/.tmux.conf`, then reload tmux (`tmux source-file ~/.tmux.conf`) and press `<prefix> f`:

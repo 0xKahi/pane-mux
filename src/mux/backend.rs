@@ -1,8 +1,13 @@
 //! Core operations shared by multiplexer backends.
 
+use std::time::Duration;
+
 use anyhow::Result;
 
-use super::model::{Current, Level, Target, Tree};
+use super::{
+    BackendKind,
+    model::{Current, Level, Target, Tree},
+};
 
 /// Operations needed by the picker, switch-session, and move-pane commands.
 /// Mutations address items by id.
@@ -12,6 +17,16 @@ pub trait Mux {
     fn target_string(&self, tree: &Tree, target: &Target, level: Level) -> String;
     /// Format a target for display in the picker.
     fn display_target(&self, tree: &Tree, target: &Target, level: Level) -> String;
+    /// Which multiplexer this backend drives, for backend-specific wording.
+    fn kind(&self) -> BackendKind;
+    /// How often the picker re-captures an unchanged preview.
+    fn preview_interval(&self) -> Duration {
+        Duration::from_millis(300)
+    }
+    /// Whether panes can be moved between sessions.
+    fn cross_session_moves(&self) -> bool {
+        true
+    }
     fn in_client(&self) -> bool;
     fn suppressed_pane(&self) -> Option<String>;
     fn capture(&self, pane_id: &str) -> Result<String>;

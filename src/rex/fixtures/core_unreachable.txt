@@ -1,0 +1,1 @@
+Error: no Rex server is running at /tmp/nonexistent.sock, and autostart is disabled

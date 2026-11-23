@@ -6,6 +6,7 @@ use crate::{
         PickerOptions,
         action::{Action, Case},
         finder::Finder,
+        test_fixtures::rex_shaped,
     },
     tmux::{FakeTmux, sample_tree},
 };
@@ -117,6 +118,29 @@ fn add_row_indicators(state: &mut State) {
     let panes = &mut state.tree.sessions[0].windows[0].panes;
     panes[1].index = 1;
     panes[1].mode = "copy-mode".into();
+}
+
+#[test]
+fn rex_rows_have_no_copy_mode_or_stash_indicators() {
+    let (_, _, theme, config, _) = fixture();
+    let fake = rex_shaped();
+    let mut state = State::load(
+        PickerOptions {
+            header: "[Pick]".into(),
+            ..PickerOptions::default()
+        },
+        &fake,
+        None,
+    )
+    .unwrap();
+    let terminal = draw(&mut state, &fake, &theme, &config);
+    let screen = terminal.backend().to_string();
+    for label in ["kahi", "1: config", "2: pi", "1: nvim", "2: zsh"] {
+        assert!(screen.contains(label), "missing {label}");
+    }
+    assert!(!screen.contains(&theme.icons.copy_mode.text));
+    assert!(!screen.contains(theme.icons.stashed.text.split_whitespace().next().unwrap()));
+    insta::assert_snapshot!(terminal.backend());
 }
 
 #[test]

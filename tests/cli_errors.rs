@@ -33,6 +33,11 @@ impl TempDir {
             .env("TMUX_TMPDIR", &self.0)
             .env_remove("TMUX")
             .env_remove("TMUX_PANE")
+            .env_remove("REX_BLOCK")
+            .env_remove("REX_SESSION")
+            .env_remove("REX_SERVER")
+            .env_remove("REX_CLIENT")
+            .env_remove("PANE_MUX_BACKEND")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -87,17 +92,17 @@ fn missing_server_errors_without_opening_terminal() {
 }
 
 #[test]
-fn switch_session_requires_tmux() {
+fn switch_session_requires_tmux_or_rex() {
     let dir = TempDir::new();
     let output = run(dir.command().arg("switch-session"));
-    assert!(assert_error(&output).contains("switch-session must run inside tmux"));
+    assert!(assert_error(&output).contains("switch-session must run inside tmux or Rex"));
 }
 
 #[test]
-fn move_pane_requires_target_outside_tmux() {
+fn move_pane_requires_target_outside_tmux_or_rex() {
     let dir = TempDir::new();
     let output = run(dir.command().arg("move-pane"));
-    assert!(assert_error(&output).contains("requires a target outside tmux"));
+    assert!(assert_error(&output).contains("move-pane requires a target outside tmux or Rex"));
 }
 
 #[test]
@@ -164,6 +169,47 @@ fn float_toggle_requires_target_outside_tmux() {
     let dir = TempDir::new();
     let output = run(dir.command().args(["float", "toggle"]));
     assert!(assert_error(&output).contains("requires a target outside tmux"));
+}
+
+#[test]
+fn float_is_tmux_only_even_without_rex_available() {
+    let dir = TempDir::new();
+    for action in ["stash", "unstash", "toggle"] {
+        let output = run(dir
+            .command()
+            .env("PANE_MUX_BACKEND", "rex")
+            .env("PATH", &dir.0)
+            .args(["float", action]));
+        let stderr = assert_error(&output);
+        assert!(stderr.contains("`float` is tmux-only"), "{stderr}");
+        assert!(stderr.contains("Rex's built-in minimize"), "{stderr}");
+    }
+}
+
+#[test]
+fn invalid_backend_override_exits_two() {
+    let dir = TempDir::new();
+    let output = run(dir
+        .command()
+        .env("PANE_MUX_BACKEND", "zellij")
+        .env("TMUX", "")
+        .arg("picker"));
+    let stderr = assert_error(&output);
+    assert!(
+        stderr.contains("PANE_MUX_BACKEND must be `tmux` or `rex`"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn rex_missing_cli_errors_without_opening_terminal() {
+    let dir = TempDir::new();
+    let output = run(dir
+        .command()
+        .env("PANE_MUX_BACKEND", "rex")
+        .env("PATH", &dir.0)
+        .arg("picker"));
+    assert!(assert_error(&output).contains("`rex` command not found on PATH"));
 }
 
 #[test]

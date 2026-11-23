@@ -276,6 +276,10 @@ impl Mux for TmuxCli {
         self.target_string(tree, target, level)
     }
 
+    fn kind(&self) -> crate::mux::BackendKind {
+        crate::mux::BackendKind::Tmux
+    }
+
     fn in_client(&self) -> bool {
         std::env::var_os("TMUX").is_some()
     }

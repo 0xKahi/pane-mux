@@ -1,0 +1,221 @@
+{
+  "sessions": [
+    {
+      "active_window_id": "window:01a20544-6ba1-7562-90a1-a210ecad287e",
+      "label": "kahi",
+      "session_id": "session:01a1fa96-984e-7cf4-987f-c3267e96063a",
+      "windows": [
+        {
+          "focused_block_id": "block:01a1fa9a-90c1-7098-b11e-166980a1a523",
+          "label": "config",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a1fa9a-90c1-7098-b11e-166980a1a523",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "nvim"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:01a1fa96-984f-7080-bcec-e6c62f05384d"
+            },
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a2053c-c851-7537-91b0-e2fe42a88f23",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "node"
+                }
+              ],
+              "kind": "floating",
+              "layer_id": "layer:01a2053c-c872-7e9a-93b9-9fcfbc42df4d"
+            }
+          ],
+          "window_id": "window:01a1fa96-984f-7055-a540-a234b8fb38b7"
+        },
+        {
+          "focused_block_id": "block:01a1ff6d-16fa-7032-be93-30f2b8043887",
+          "label": "pi",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a1ff6d-16fa-7032-be93-30f2b8043887",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "zsh"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:01a1ff6d-1716-7376-bc1c-fdc547d611b3"
+            }
+          ],
+          "window_id": "window:01a1ff6d-1716-736e-bf05-5c16712de921"
+        },
+        {
+          "focused_block_id": "block:01a1ffd8-cb54-798d-997e-f092f6997880",
+          "label": "pane-mux",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a1ffd8-cb54-798d-997e-f092f6997880",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "zsh"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:01a1ffd8-cb6f-7904-9d7f-4bcd4e42e83d"
+            }
+          ],
+          "window_id": "window:01a1ffd8-cb6f-78f8-9ec5-518383a49708"
+        },
+        {
+          "focused_block_id": "block:01a20544-6be1-7bfe-9a05-62d8046a81a8",
+          "label": "rex-intergration",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a20544-6be1-7bfe-9a05-62d8046a81a8",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "zsh"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:01a20544-6ba1-756e-bd7d-8cde84abfa67"
+            },
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a20544-961c-77fa-a9ed-4987cd6e22b7",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "rex-intergration",
+                  "process_name": "node"
+                }
+              ],
+              "kind": "floating",
+              "layer_id": "layer:01a20544-9639-756a-baef-e1ca83844ecb",
+              "state": "minimized"
+            }
+          ],
+          "window_id": "window:01a20544-6ba1-7562-90a1-a210ecad287e"
+        }
+      ]
+    },
+    {
+      "active_window_id": "window:01a1ff68-9435-7e0d-a2de-7a596ce43625",
+      "label": "shuffle",
+      "session_id": "session:01a1ff68-9419-7376-b92e-3b7fce14a5c8",
+      "windows": [
+        {
+          "focused_block_id": "block:01a1ff68-9419-7589-a9f1-7c28a662843d",
+          "label": "api",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a1ff68-9419-7589-a9f1-7c28a662843d",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "zsh"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:01a1ff68-9435-7e15-a96d-20ce5c28335e"
+            }
+          ],
+          "window_id": "window:01a1ff68-9435-7e0d-a2de-7a596ce43625"
+        },
+        {
+          "focused_block_id": "block:01a2009a-f12d-7b37-98ce-d347a46b84c1",
+          "label": "admin",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a2009a-f12d-7b37-98ce-d347a46b84c1",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "zsh"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:01a2009a-f14a-7514-b062-d2d8d2a57d60"
+            }
+          ],
+          "window_id": "window:01a2009a-f14a-750c-a5a0-3b21532f0d30"
+        },
+        {
+          "focused_block_id": "block:01a2009b-434c-786c-b706-1929b878a558",
+          "label": "fe",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a2009b-434c-786c-b706-1929b878a558",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "zsh"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:01a2009b-4367-771c-bc55-6a3cd13a4e40"
+            }
+          ],
+          "window_id": "window:01a2009b-4367-7718-bd78-79cafc65e4c6"
+        }
+      ]
+    },
+    {
+      "active_window_id": "window:01a20565-b51a-7dfe-9f33-883ca4bd9274",
+      "label": "shuffle-be",
+      "session_id": "session:01a20565-b4f8-7806-9a75-80f4aff16fff",
+      "windows": [
+        {
+          "focused_block_id": "block:01a20565-b4f8-7ac9-a52d-351ed1c33a49",
+          "label": "api",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a20565-b4f8-7ac9-a52d-351ed1c33a49",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "nvim"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:01a20565-b51a-7e15-a81c-c6ea2415c258"
+            }
+          ],
+          "window_id": "window:01a20565-b51a-7dfe-9f33-883ca4bd9274"
+        },
+        {
+          "focused_block_id": "block:01a20570-4c31-7557-aa4e-336d236faf5d",
+          "label": "󰆧 be-add-sports-promo-link-type-to-advent-calendar",
+          "layers": [
+            {
+              "blocks": [
+                {
+                  "block_id": "block:01a20570-4c31-7557-aa4e-336d236faf5d",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "label": "shell",
+                  "process_name": "zsh"
+                }
+              ],
+              "kind": "tiled",
+              "layer_id": "layer:01a20570-4be9-7e09-9ed4-8f3116124d0d"
+            }
+          ],
+          "window_id": "window:01a20570-4be9-7e01-ad8a-525d22506f39"
+        }
+      ]
+    }
+  ]
+}

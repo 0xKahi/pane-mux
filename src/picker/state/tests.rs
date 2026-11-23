@@ -720,6 +720,64 @@ fn preview_title(state: &State, fake: &FakeTmux) -> String {
 }
 
 #[test]
+fn rex_preview_throttles_ticks_but_captures_new_selection_immediately() {
+    use std::time::Duration;
+
+    let fake = fixture()
+        .with_kind(BackendKind::Rex)
+        .with_preview_interval(Duration::from_secs(1));
+    let mut state = State::load(
+        PickerOptions {
+            initial_pane: Some("%10".into()),
+            ..PickerOptions::default()
+        },
+        &fake,
+        None,
+    )
+    .unwrap();
+    assert_eq!(state.preview.pane_id.as_deref(), Some("%10"));
+    let initial = state.last_capture.unwrap();
+    let before_tick = fake.calls().len();
+    assert!(!state.refresh_at(&fake, initial + REFRESH_TICK).unwrap());
+    assert_eq!(&fake.calls()[before_tick..], ["tree"]);
+
+    state.focus = Level::Pane;
+    state.select(Level::Window, Some("@10".into()));
+    state.select(Level::Pane, Some("%11".into()));
+    let selected = initial + REFRESH_TICK;
+    state.update_preview_at(&fake, selected).unwrap();
+    assert_eq!(fake.calls().last().unwrap(), "capture-pane %11");
+    assert!(state.preview.content.contains("second pane"));
+
+    assert_eq!(state.last_capture, Some(selected));
+    let before_tick = fake.calls().len();
+    assert!(
+        !state
+            .refresh_at(&fake, selected + Duration::from_secs(1))
+            .unwrap()
+    );
+    assert_eq!(&fake.calls()[before_tick..], ["tree", "capture-pane %11"]);
+}
+
+#[test]
+fn rex_name_order_keeps_backend_order_for_duplicate_labels() {
+    let fake = FakeTmux::new(sample_tree(&["shuffle", "kahi", "alpha", "kahi"]))
+        .with_kind(BackendKind::Rex);
+    let mut state = state(&fake);
+    let ids = |state: &State| {
+        state
+            .sessions()
+            .iter()
+            .map(|s| s.id.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(ids(&state), ["$2", "$1", "$3", "$0"]);
+    assert_eq!(state.session.as_deref(), Some("$2"));
+    assert!(!state.refresh(&fake).unwrap());
+    assert_eq!(ids(&state), ["$2", "$1", "$3", "$0"]);
+}
+
+#[test]
 fn preview_follows_session_active_descendants() {
     let fake = fixture();
     let mut state = state(&fake);

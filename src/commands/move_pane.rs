@@ -15,7 +15,10 @@ pub fn options(target: Option<&str>, tmux: &dyn Mux, inside_tmux: bool) -> Resul
             .resolve_pane(target)
             .with_context(|| format!("pane not found: {target}"))?,
         None => {
-            ensure!(inside_tmux, "move-pane requires a target outside tmux");
+            ensure!(
+                inside_tmux,
+                "move-pane requires a target outside tmux or Rex"
+            );
             tmux.current()?
                 .context("could not determine current pane")?
                 .pane_id

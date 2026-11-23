@@ -1,6 +1,7 @@
 use super::*;
 use crate::{
     config::{Config, keymap::Keymap, preset},
+    picker::test_fixtures::rex_shaped,
     tmux::{FakeTmux, sample_tree},
 };
 
@@ -43,6 +44,81 @@ fn submit(state: &mut State, fake: &FakeTmux, text: &str) -> Option<Exit> {
     };
     *value = text.into();
     press(state, fake, "<Enter>")
+}
+
+#[test]
+fn rex_refuses_cross_session_pastes_and_keeps_cut() {
+    for (session, focus, cut_locked) in [
+        ("session:kahi", Level::Session, false),
+        ("session:shuffle", Level::Window, false),
+        ("session:shuffle", Level::Pane, true),
+    ] {
+        let fake = rex_shaped();
+        let mut state = State::load(
+            PickerOptions {
+                cut: Some("block:pi".into()),
+                cut_locked,
+                ..PickerOptions::default()
+            },
+            &fake,
+            None,
+        )
+        .unwrap();
+        state.select(Level::Session, Some(session.into()));
+        state.focus = focus;
+        let before = state.tree.clone();
+        let calls = fake.calls().len();
+
+        assert_eq!(press(&mut state, &fake, "p"), None);
+        assert_eq!(
+            state.message.as_deref(),
+            Some("rex does not allow moving panes to different session")
+        );
+        assert_eq!(state.cut.as_deref(), Some("block:pi"));
+        assert_eq!(state.popup, None);
+        assert_eq!(state.tree, before);
+        assert!(
+            fake.calls()[calls..]
+                .iter()
+                .all(|call| call == "tree" || call.starts_with("capture-pane "))
+        );
+    }
+}
+
+#[test]
+fn rex_same_session_window_paste_still_opens_prompt_and_moves() {
+    let fake = rex_shaped();
+    let mut state = State::load(PickerOptions::default(), &fake, None).unwrap();
+    state.cut = Some("block:pi".into());
+    state.focus = Level::Window;
+
+    assert_eq!(press(&mut state, &fake, "p"), None);
+    assert!(matches!(&state.popup, Some(Popup::Input {
+        purpose: InputPurpose::PasteWindow { session_id, .. }, ..
+    }) if session_id == "session:kahi"));
+    assert_eq!(submit(&mut state, &fake, "mon"), None);
+    assert_eq!(state.cut, None);
+    assert_eq!(state.message, None);
+    let window = state.hovered_window().unwrap();
+    assert_eq!(window.name, "mon");
+    assert_eq!(window.panes[0].id, "block:pi");
+}
+
+#[test]
+fn rex_same_session_floating_paste_has_no_zoom_refusal() {
+    let fake = rex_shaped();
+    let mut state = State::load(PickerOptions::default(), &fake, None).unwrap();
+    state.cut = Some("block:pi".into());
+    state.focus = Level::Pane;
+    assert_eq!(state.hovered_window().unwrap().id, "window:config");
+
+    assert_eq!(press(&mut state, &fake, "p"), None);
+    assert_eq!(state.message, None);
+    assert_eq!(state.cut, None);
+    assert_eq!(state.popup, None);
+    let pane = state.hovered_pane().unwrap();
+    assert_eq!(pane.id, "block:pi");
+    assert!(pane.floating);
 }
 
 #[test]

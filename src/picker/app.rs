@@ -1,11 +1,11 @@
 //! Synchronous input and refresh loop; state and rendering stay separate.
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyEventKind};
 
-use super::{Exit, PickerOptions, State, terminal, ui};
+use super::{Exit, PickerOptions, REFRESH_TICK, State, terminal, ui};
 use crate::{
     config::{Loaded, keymap::Key},
     mux::Mux,
@@ -17,7 +17,6 @@ pub fn run(options: PickerOptions, tmux: &dyn Mux, loaded: &Loaded) -> Result<Ex
     let mut state = State::load(options, tmux, tmux.suppressed_pane())?;
     state.floating_pane = loaded.config.floating_pane.clone();
     let mut session = terminal::setup()?;
-    let tick = Duration::from_millis(300);
     let mut last_tick = Instant::now();
     let mut dirty = true;
 
@@ -31,7 +30,7 @@ pub fn run(options: PickerOptions, tmux: &dyn Mux, loaded: &Loaded) -> Result<Ex
             })?;
             dirty = false;
         }
-        if event::poll(tick.saturating_sub(last_tick.elapsed()))? {
+        if event::poll(REFRESH_TICK.saturating_sub(last_tick.elapsed()))? {
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => {
                     if let Some(exit) = state.handle_key(Key::from(key), &loaded.keymap, tmux) {
@@ -43,7 +42,7 @@ pub fn run(options: PickerOptions, tmux: &dyn Mux, loaded: &Loaded) -> Result<Ex
                 _ => {}
             }
         }
-        if last_tick.elapsed() >= tick {
+        if last_tick.elapsed() >= REFRESH_TICK {
             match state.refresh(tmux) {
                 Ok(changed) => dirty |= changed,
                 Err(error) => {

@@ -28,12 +28,20 @@ While running under `switch-session`, the picker header SHALL indicate that `<En
 - **WHEN** the user runs `pane-mux switch-session`
 - **THEN** the picker header shows the switch mode indicator
 
-### Requirement: Requires tmux client
-`pane-mux switch-session` SHALL fail with a message on stderr and exit code 2, without opening the picker, when not running inside tmux.
+### Requirement: Requires a supported multiplexer client
+`pane-mux switch-session` SHALL fail with a message on stderr and exit code 2, without opening the picker, when it is running neither inside tmux on the tmux backend nor inside a Rex block on the Rex backend.
 
 #### Scenario: Outside tmux
-- **WHEN** the user runs `pane-mux switch-session` in a terminal with no `TMUX` environment
-- **THEN** stderr explains that switch-session must run inside tmux and the exit code is 2
+- **WHEN** the user runs `pane-mux switch-session` in a terminal with no `TMUX` and no `REX_BLOCK` environment
+- **THEN** stderr explains that switch-session must run inside tmux or Rex and the exit code is 2
+
+#### Scenario: Inside a Rex block
+- **WHEN** the user runs `pane-mux switch-session` with `REX_BLOCK` set and no `TMUX`
+- **THEN** the picker opens on the Rex backend
+
+#### Scenario: Rex forced outside Rex
+- **WHEN** `PANE_MUX_BACKEND=rex` is set but `REX_BLOCK` is not
+- **THEN** stderr explains that switch-session must run inside a Rex block and the exit code is 2
 
 ### Requirement: Cancel does not switch
 Quitting the picker without picking SHALL leave the client unchanged and exit with code 130.
@@ -43,7 +51,7 @@ Quitting the picker without picking SHALL leave the client unchanged and exit wi
 - **THEN** the client is not switched and the exit code is 130
 
 ### Requirement: Sessions ordered by recency
-While running under `switch-session`, the picker's sessions column SHALL list the invoking client's current session first, then every other session from most to least recently attached on the tmux server. Sessions with equal attach times, and sessions that were never attached, SHALL be ordered by name, and never-attached sessions SHALL come last. Sessions whose names exactly match an entry in `[switch-session] exclude_from_recency` SHALL instead be listed after all ranked sessions, ordered by name and regardless of attach time; the current session SHALL stay first even when excluded. The cursor SHALL open on the first non-current session, else on the first row.
+While running under `switch-session` on the tmux backend, the picker's sessions column SHALL list the invoking client's current session first, then every other session from most to least recently attached on the tmux server. Sessions with equal attach times, and sessions that were never attached, SHALL be ordered by name, and never-attached sessions SHALL come last. Sessions whose names exactly match an entry in `[switch-session] exclude_from_recency` SHALL instead be listed after all ranked sessions, ordered by name and regardless of attach time; the current session SHALL stay first even when excluded. The cursor SHALL open on the first non-current session, else on the first row. On the Rex backend, sessions SHALL be ranked as defined by `rex-backend`.
 
 #### Scenario: Current first, then most recent
 - **WHEN** the client is on `pmux`, previously switched from `shuffle-be`, before that from `kahi`, and `scratch` exists, and the user runs `pane-mux switch-session`
@@ -104,3 +112,7 @@ While running under `switch-session`, the picker's sessions column SHALL list th
 #### Scenario: Excluded session attached by another client does not move
 - **WHEN** the picker is open, `scratch` is excluded, and another client switches to `scratch`
 - **THEN** after the next refresh, `scratch` keeps its position among the excluded sessions
+
+#### Scenario: Rex backend uses its own ranking
+- **WHEN** the Rex backend is active and the user runs `pane-mux switch-session`
+- **THEN** sessions are ordered as defined by `rex-backend` "Rex recency ranking"

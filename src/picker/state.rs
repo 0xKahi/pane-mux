@@ -1,11 +1,12 @@
 //! Picker state and synchronous action handling, independent of terminal rendering.
 
-use std::{cmp::Reverse, collections::HashMap};
+use std::{cmp::Reverse, collections::HashMap, time::Instant};
 
 use anyhow::Result;
 use crossterm::event::KeyCode;
 
 use super::{
+    REFRESH_TICK,
     action::{Action, Case, Direction, Step},
     finder::Finder,
     options::{PickerOptions, SessionOrder},
@@ -17,7 +18,7 @@ use crate::{
         FloatingPaneConfig, FloatingPosition,
         keymap::{Key, Keymap},
     },
-    mux::{Current, Level, Mux, Pane, Session, Target, Tree, Window},
+    mux::{BackendKind, Current, Level, Mux, Pane, Session, Target, Tree, Window},
 };
 
 /// Outcome consumed by the command after restoring the terminal.
@@ -56,6 +57,7 @@ pub struct State {
     pub window: Option<String>,
     pub pane: Option<String>,
     pub preview: Preview,
+    last_capture: Option<Instant>,
     pub popup: Option<Popup>,
     pub finder: Option<Finder>,
     pub which: Option<Which>,
@@ -89,6 +91,7 @@ impl State {
             window: None,
             pane: None,
             preview: Preview::default(),
+            last_capture: None,
             popup: None,
             finder: None,
             which: None,
@@ -132,7 +135,9 @@ impl State {
         tmux: &dyn Mux,
         suppressed_pane: Option<String>,
     ) -> Result<Self> {
-        let mut state = Self::new(options, tmux.tree()?, tmux.current()?, suppressed_pane);
+        let mut tree = tmux.tree()?;
+        sort_backend_names(&mut tree, options.order, tmux.kind());
+        let mut state = Self::new(options, tree, tmux.current()?, suppressed_pane);
         state.update_preview(tmux)?;
         Ok(state)
     }
@@ -312,7 +317,11 @@ impl State {
 
     /// Refresh snapshots and preview, retaining ids or clamping vanished cursors.
     pub fn refresh(&mut self, tmux: &dyn Mux) -> Result<bool> {
-        let before = self.clone();
+        self.refresh_at(tmux, Instant::now())
+    }
+
+    fn refresh_at(&mut self, tmux: &dyn Mux, now: Instant) -> Result<bool> {
+        let mut before = self.clone();
         let levels = [Level::Session, Level::Window, Level::Pane];
         let positions = levels.map(|level| {
             self.ids(level)
@@ -321,6 +330,7 @@ impl State {
                 .unwrap_or(0)
         });
         self.tree = tmux.tree()?;
+        sort_backend_names(&mut self.tree, self.options.order, tmux.kind());
         self.stash_counts = self.tree.stash_counts();
         if self.cut.is_some() && self.cut_target().is_none() {
             self.cut = None;
@@ -334,22 +344,42 @@ impl State {
                 self.select(level, id);
             }
         }
-        self.update_preview(tmux)?;
+        self.update_preview_at(tmux, now)?;
+        // Changing only the capture timestamp doesn't require a redraw.
+        before.last_capture = self.last_capture;
         Ok(*self != before)
     }
 
     fn update_preview(&mut self, tmux: &dyn Mux) -> Result<()> {
+        self.update_preview_at(tmux, Instant::now())
+    }
+
+    fn update_preview_at(&mut self, tmux: &dyn Mux, now: Instant) -> Result<()> {
         let pane_id = self.selected_pane().map(|p| p.id.clone());
         if self.preview.pane_id != pane_id {
             self.preview.scroll = 0;
             self.preview.content.clear();
             self.preview.pane_id = pane_id.clone();
+            self.last_capture = None;
         }
-        self.preview.content = match pane_id {
-            Some(_) if self.preview_suppressed() => String::new(),
-            Some(id) => tmux.capture(&id)?,
-            None => String::new(),
-        };
+        let interval = tmux.preview_interval();
+        match pane_id {
+            Some(id) if !self.preview_suppressed() => {
+                // Preserve the existing action and tick captures for tmux.
+                if interval <= REFRESH_TICK
+                    || self
+                        .last_capture
+                        .is_none_or(|last| now.duration_since(last) >= interval)
+                {
+                    self.preview.content = tmux.capture(&id)?;
+                    self.last_capture = Some(now);
+                }
+            }
+            _ => {
+                self.preview.content.clear();
+                self.last_capture = None;
+            }
+        }
         self.clamp_scroll();
         Ok(())
     }
@@ -695,6 +725,16 @@ impl State {
             return Ok(None);
         };
         self.require_pane(&pane_id, tmux)?;
+        if !tmux.cross_session_moves()
+            && (self.focus == Level::Session
+                || self.cut_target().is_some_and(|source| {
+                    self.hovered_session()
+                        .is_some_and(|target| target.id != source.session_id)
+                }))
+        {
+            self.message = Some("rex does not allow moving panes to different session".into());
+            return Ok(None);
+        }
         let purpose = match self.focus {
             Level::Session => InputPurpose::PasteSession { pane_id },
             Level::Window => {
@@ -872,6 +912,13 @@ fn moved(index: usize, len: usize, step: Step, height: u16) -> usize {
     index
         .saturating_add_signed(delta)
         .min(len.saturating_sub(1))
+}
+
+// Tmux already supplies name order. Rex supplies server order, which breaks label ties.
+fn sort_backend_names(tree: &mut Tree, order: SessionOrder, kind: BackendKind) {
+    if order == SessionOrder::Name && kind == BackendKind::Rex {
+        tree.sessions.sort_by(|a, b| a.name.cmp(&b.name));
+    }
 }
 
 #[cfg(test)]

@@ -78,7 +78,7 @@ The picker SHALL periodically refresh the tmux tree and the preview so that exte
 - **THEN** `extra` appears in the sessions column within about one second
 
 ### Requirement: Pick and print target
-On `<Enter>`, the picker SHALL exit and print exactly one line to stdout: the tmux target of the hovered item at the output level, formatted `session`, `session:window_index` or `session:window_index.pane_index`. The output level SHALL be set by `--session`, `--window` or `--pane` (mutually exclusive); without a flag it SHALL be the focused column's level. The UI SHALL never be written to stdout.
+On `<Enter>`, the picker SHALL exit and print exactly one line to stdout: the target of the hovered item at the output level, in the active backend's target format. On the tmux backend the target SHALL be formatted `session`, `session:window_index` or `session:window_index.pane_index`. On the Rex backend the format is defined by `rex-backend`. The output level SHALL be set by `--session`, `--window` or `--pane` (mutually exclusive); without a flag it SHALL be the focused column's level. The UI SHALL never be written to stdout.
 
 #### Scenario: Session flag from pane column
 - **WHEN** the user runs `pane-mux picker --session`, focuses the panes column, hovers `work:1.2` and presses `<Enter>`
@@ -95,6 +95,10 @@ On `<Enter>`, the picker SHALL exit and print exactly one line to stdout: the tm
 #### Scenario: Conflicting flags
 - **WHEN** the user runs `pane-mux picker --session --pane`
 - **THEN** the command prints a usage error to stderr and exits with code 2 without opening the UI
+
+#### Scenario: Rex backend
+- **WHEN** the Rex backend is active and the user picks a block with `pane-mux picker --pane`
+- **THEN** stdout is exactly that block's full Rex ID followed by a newline
 
 ### Requirement: Cancel and exit codes
 Quitting without picking SHALL print nothing to stdout and exit with code 130. Errors (tmux unavailable, no tmux server, invalid config) SHALL print a message to stderr and exit with code 2.
