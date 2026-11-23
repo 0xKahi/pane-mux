@@ -49,7 +49,7 @@ fn submit(state: &mut State, fake: &FakeTmux, text: &str) -> Option<Exit> {
 #[test]
 fn rex_refuses_cross_session_pastes_and_keeps_cut() {
     for (session, focus, cut_locked) in [
-        ("session:kahi", Level::Session, false),
+        ("session:home", Level::Session, false),
         ("session:sidecar", Level::Window, false),
         ("session:sidecar", Level::Pane, true),
     ] {
@@ -95,7 +95,7 @@ fn rex_same_session_window_paste_still_opens_prompt_and_moves() {
     assert_eq!(press(&mut state, &fake, "p"), None);
     assert!(matches!(&state.popup, Some(Popup::Input {
         purpose: InputPurpose::PasteWindow { session_id, .. }, ..
-    }) if session_id == "session:kahi"));
+    }) if session_id == "session:home"));
     assert_eq!(submit(&mut state, &fake, "mon"), None);
     assert_eq!(state.cut, None);
     assert_eq!(state.message, None);

@@ -135,7 +135,7 @@ fn rex_rows_have_no_copy_mode_or_stash_indicators() {
     .unwrap();
     let terminal = draw(&mut state, &fake, &theme, &config);
     let screen = terminal.backend().to_string();
-    for label in ["kahi", "1: config", "2: pi", "1: nvim", "2: zsh"] {
+    for label in ["home", "1: config", "2: pi", "1: nvim", "2: zsh"] {
         assert!(screen.contains(label), "missing {label}");
     }
     assert!(!screen.contains(&theme.icons.copy_mode.text));

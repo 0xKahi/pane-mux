@@ -18,8 +18,8 @@ On the Rex backend the picker's three columns SHALL list Rex sessions, the windo
 - **THEN** that block appears in the panes column
 
 #### Scenario: Picker session order
-- **WHEN** Rex sessions `sidecar` and `kahi` exist and the user runs `pane-mux picker`
-- **THEN** the sessions column lists `kahi` then `sidecar`, ordered by label
+- **WHEN** Rex sessions `sidecar` and `home` exist and the user runs `pane-mux picker`
+- **THEN** the sessions column lists `home` then `sidecar`, ordered by label
 
 ### Requirement: Rex row numbering and pane names
 On the Rex backend, window and pane rows SHALL be prefixed with their 1-based position in the window list or block list. A pane row's name SHALL be the block's foreground process name, falling back to the block label when no process name is available.
@@ -36,8 +36,8 @@ On the Rex backend, window and pane rows SHALL be prefixed with their 1-based po
 On the Rex backend the current session, window and pane SHALL be those of the Rex block the picker runs in, identified by `REX_BLOCK`. The picker SHALL mark them as it does under tmux. When that block cannot be found, no item SHALL be marked current.
 
 #### Scenario: Picker in a floating block
-- **WHEN** the picker runs in a floating block in window `pi` of session `kahi`
-- **THEN** `kahi`, `pi` and that floating block carry the current-item marker
+- **WHEN** the picker runs in a floating block in window `pi` of session `home`
+- **THEN** `home`, `pi` and that floating block carry the current-item marker
 
 ### Requirement: Rex pick output
 On the Rex backend, `<Enter>` in `pane-mux picker` SHALL print exactly one line: the full Rex ID of the hovered item at the output level, `session:<uuid>`, `window:<uuid>` or `block:<uuid>`. Level flags and exit codes SHALL behave as on tmux.
@@ -80,8 +80,8 @@ On the Rex backend, a missing `rex` executable or an unreachable Rex server SHAL
 On the Rex backend the picker's create, rename and delete actions SHALL act on Rex sessions, windows and blocks with the same prompts, refusals and on-screen error handling as on tmux. A created session SHALL get one window with one shell block.
 
 #### Scenario: Create a window
-- **WHEN** the user creates a window named `logs` in session `kahi` under Rex
-- **THEN** session `kahi` gains a window labelled `logs`, the app's active window does not change, and the cursor moves to `logs`
+- **WHEN** the user creates a window named `logs` in session `home` under Rex
+- **THEN** session `home` gains a window labelled `logs`, the app's active window does not change, and the cursor moves to `logs`
 
 #### Scenario: Rex error shown
 - **WHEN** a rename fails in Rex
@@ -105,12 +105,12 @@ When Rex refuses to change the app's view because Remote Control is off or no ap
 Under `switch-session` on Rex, sessions SHALL be listed current first, then sessions in pane-mux's recently-switched list from most to least recent, then the remaining sessions in Rex's session order. Sessions whose labels match `exclude_from_recency` SHALL come after all of those, ordered by label. The current session SHALL stay first even when excluded. The cursor SHALL open on the first non-current session.
 
 #### Scenario: Recent first, then Rex order
-- **WHEN** Rex orders sessions `kahi`, `sidecar`, `notes`, `scratch`, the client is on `kahi`, and pane-mux previously switched to `notes` and before that to `kahi`
-- **THEN** the sessions column lists `kahi`, `notes`, `sidecar`, `scratch`, with the cursor on `notes`
+- **WHEN** Rex orders sessions `home`, `sidecar`, `notes`, `scratch`, the client is on `home`, and pane-mux previously switched to `notes` and before that to `home`
+- **THEN** the sessions column lists `home`, `notes`, `sidecar`, `scratch`, with the cursor on `notes`
 
 #### Scenario: No history yet
-- **WHEN** pane-mux has never switched sessions under Rex and Rex orders sessions `kahi`, `sidecar`, `notes`, with the client on `sidecar`
-- **THEN** the sessions column lists `sidecar`, `kahi`, `notes`
+- **WHEN** pane-mux has never switched sessions under Rex and Rex orders sessions `home`, `sidecar`, `notes`, with the client on `sidecar`
+- **THEN** the sessions column lists `sidecar`, `home`, `notes`
 
 #### Scenario: Excluded session
 - **WHEN** `exclude_from_recency = ["scratch"]` and `scratch` is the most recently switched-to session
@@ -135,7 +135,7 @@ On the Rex backend, any paste that would move a block into a different session S
 - **THEN** the message `rex does not allow moving panes to different session` is shown, no prompt opens, and nothing moves
 
 #### Scenario: Paste into another session's window
-- **WHEN** a block from session `kahi` is cut and the user pastes into a window of session `sidecar`
+- **WHEN** a block from session `home` is cut and the user pastes into a window of session `sidecar`
 - **THEN** the same message is shown and nothing moves
 
 #### Scenario: Under move-pane
@@ -146,8 +146,8 @@ On the Rex backend, any paste that would move a block into a different session S
 On the Rex backend, with the windows column focused on the cut block's own session, `paste` SHALL prompt for a window name and move the cut block into a new window with that label in that session. The block's program SHALL keep running.
 
 #### Scenario: Move to a new window
-- **WHEN** a block running `htop` in session `kahi` is cut and pasted with the windows column focused on `kahi`, named `mon`
-- **THEN** session `kahi` gains a window `mon` containing that block, still running `htop`, and no other block is left behind in it
+- **WHEN** a block running `htop` in session `home` is cut and pasted with the windows column focused on `home`, named `mon`
+- **THEN** session `home` gains a window `mon` containing that block, still running `htop`, and no other block is left behind in it
 
 ### Requirement: Rex same-session floating paste
 On the Rex backend, with the panes column focused on a window in the cut block's own session, `paste` SHALL move the cut block into the hovered window as a floating block sized and positioned by `[floating-pane]` width, height and position, without prompting.

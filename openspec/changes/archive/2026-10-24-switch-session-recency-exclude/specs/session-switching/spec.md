@@ -6,8 +6,8 @@
 While running under `switch-session`, the picker's sessions column SHALL list the invoking client's current session first, then every other session from most to least recently attached on the tmux server. Sessions with equal attach times, and sessions that were never attached, SHALL be ordered by name, and never-attached sessions SHALL come last. Sessions whose names exactly match an entry in `[switch-session] exclude_from_recency` SHALL instead be listed after all ranked sessions, ordered by name and regardless of attach time; the current session SHALL stay first even when excluded. The cursor SHALL open on the first non-current session, else on the first row.
 
 #### Scenario: Current first, then most recent
-- **WHEN** the client is on `pmux`, previously switched from `server-api`, before that from `kahi`, and `scratch` exists, and the user runs `pane-mux switch-session`
-- **THEN** the sessions column lists `pmux`, `server-api`, `kahi`, `scratch` in that order, with the cursor on `server-api`
+- **WHEN** the client is on `pmux`, previously switched from `server-api`, before that from `home`, and `scratch` exists, and the user runs `pane-mux switch-session`
+- **THEN** the sessions column lists `pmux`, `server-api`, `home`, `scratch` in that order, with the cursor on `server-api`
 
 #### Scenario: Enter right away switches to the previous session
 - **WHEN** the client is on `pmux`, previously switched from `server-api`, and the user runs `pane-mux switch-session` and presses `<Enter>` without moving the cursor
@@ -30,8 +30,8 @@ While running under `switch-session`, the picker's sessions column SHALL list th
 - **THEN** after the current session, `work` is listed before `alpha`, and `alpha` before `zeta`
 
 #### Scenario: Order follows refresh without losing the cursor
-- **WHEN** the picker is open with the cursor on `kahi` and another client switches to `scratch`
-- **THEN** after the next refresh, `scratch` is listed directly after the current session and the cursor is still on `kahi`
+- **WHEN** the picker is open with the cursor on `home` and another client switches to `scratch`
+- **THEN** after the next refresh, `scratch` is listed directly after the current session and the cursor is still on `home`
 
 #### Scenario: Windows and panes unaffected
 - **WHEN** the user hovers a session under `switch-session`

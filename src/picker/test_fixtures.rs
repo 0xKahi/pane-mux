@@ -23,8 +23,8 @@ pub(super) fn rex_shaped() -> FakeTmux {
     FakeTmux::new(Tree {
         sessions: vec![
             Session {
-                id: "session:kahi".into(),
-                name: "kahi".into(),
+                id: "session:home".into(),
+                name: "home".into(),
                 windows: vec![
                     window(
                         "config",
