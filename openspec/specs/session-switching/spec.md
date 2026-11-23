@@ -54,12 +54,12 @@ Quitting the picker without picking SHALL leave the client unchanged and exit wi
 While running under `switch-session` on the tmux backend, the picker's sessions column SHALL list the invoking client's current session first, then every other session from most to least recently attached on the tmux server. Sessions with equal attach times, and sessions that were never attached, SHALL be ordered by name, and never-attached sessions SHALL come last. Sessions whose names exactly match an entry in `[switch-session] exclude_from_recency` SHALL instead be listed after all ranked sessions, ordered by name and regardless of attach time; the current session SHALL stay first even when excluded. The cursor SHALL open on the first non-current session, else on the first row. On the Rex backend, sessions SHALL be ranked as defined by `rex-backend`.
 
 #### Scenario: Current first, then most recent
-- **WHEN** the client is on `pmux`, previously switched from `shuffle-be`, before that from `kahi`, and `scratch` exists, and the user runs `pane-mux switch-session`
-- **THEN** the sessions column lists `pmux`, `shuffle-be`, `kahi`, `scratch` in that order, with the cursor on `shuffle-be`
+- **WHEN** the client is on `pmux`, previously switched from `server-api`, before that from `kahi`, and `scratch` exists, and the user runs `pane-mux switch-session`
+- **THEN** the sessions column lists `pmux`, `server-api`, `kahi`, `scratch` in that order, with the cursor on `server-api`
 
 #### Scenario: Enter right away switches to the previous session
-- **WHEN** the client is on `pmux`, previously switched from `shuffle-be`, and the user runs `pane-mux switch-session` and presses `<Enter>` without moving the cursor
-- **THEN** the client switches to `shuffle-be`
+- **WHEN** the client is on `pmux`, previously switched from `server-api`, and the user runs `pane-mux switch-session` and presses `<Enter>` without moving the cursor
+- **THEN** the client switches to `server-api`
 
 #### Scenario: Only the current session exists
 - **WHEN** `work` is the only session and the client on `work` runs `pane-mux switch-session`

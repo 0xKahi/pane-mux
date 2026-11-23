@@ -410,7 +410,7 @@ fn recent_order_without_current_sorts_newest_then_ties_and_never_attached_by_nam
 
 #[test]
 fn recent_order_refresh_reorders_without_losing_cursor() {
-    let mut tree = sample_tree(&["kahi", "pmux", "scratch", "shuffle-be"]);
+    let mut tree = sample_tree(&["kahi", "pmux", "scratch", "server-api"]);
     for (session, time) in tree.sessions.iter_mut().zip([100, 300, 0, 200]) {
         session.last_attached = time;
     }
@@ -434,7 +434,7 @@ fn recent_order_refresh_reorders_without_losing_cursor() {
             .iter()
             .map(|s| s.name.as_str())
             .collect::<Vec<_>>(),
-        ["pmux", "shuffle-be", "kahi", "scratch"]
+        ["pmux", "server-api", "kahi", "scratch"]
     );
     assert_eq!(state.session.as_deref(), Some("$3"));
     key(&mut state, &fake, "j");
@@ -454,7 +454,7 @@ fn recent_order_refresh_reorders_without_losing_cursor() {
             .iter()
             .map(|s| s.name.as_str())
             .collect::<Vec<_>>(),
-        ["pmux", "scratch", "shuffle-be", "kahi"]
+        ["pmux", "scratch", "server-api", "kahi"]
     );
     assert_eq!((state.session, state.window, state.pane), cursors);
 }
@@ -761,7 +761,7 @@ fn rex_preview_throttles_ticks_but_captures_new_selection_immediately() {
 
 #[test]
 fn rex_name_order_keeps_backend_order_for_duplicate_labels() {
-    let fake = FakeTmux::new(sample_tree(&["shuffle", "kahi", "alpha", "kahi"]))
+    let fake = FakeTmux::new(sample_tree(&["sidecar", "kahi", "alpha", "kahi"]))
         .with_kind(BackendKind::Rex);
     let mut state = state(&fake);
     let ids = |state: &State| {

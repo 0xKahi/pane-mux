@@ -18,8 +18,8 @@ On the Rex backend the picker's three columns SHALL list Rex sessions, the windo
 - **THEN** that block appears in the panes column
 
 #### Scenario: Picker session order
-- **WHEN** Rex sessions `shuffle` and `kahi` exist and the user runs `pane-mux picker`
-- **THEN** the sessions column lists `kahi` then `shuffle`, ordered by label
+- **WHEN** Rex sessions `sidecar` and `kahi` exist and the user runs `pane-mux picker`
+- **THEN** the sessions column lists `kahi` then `sidecar`, ordered by label
 
 ### Requirement: Rex row numbering and pane names
 On the Rex backend, window and pane rows SHALL be prefixed with their 1-based position in the window list or block list. A pane row's name SHALL be the block's foreground process name, falling back to the block label when no process name is available.
@@ -91,26 +91,26 @@ On the Rex backend the picker's create, rename and delete actions SHALL act on R
 On the Rex backend, `pane-mux switch-session` SHALL, on `<Enter>`, make the Rex app show the picked session and focus the picked window or block at the focused column's level, then exit with code 0.
 
 #### Scenario: Switch to a block in another session
-- **WHEN** the user runs `pane-mux switch-session` under Rex and picks block `B` in window `W` of session `shuffle`
-- **THEN** the Rex app shows session `shuffle` with window `W` active and block `B` focused, and the exit code is 0
+- **WHEN** the user runs `pane-mux switch-session` under Rex and picks block `B` in window `W` of session `sidecar`
+- **THEN** the Rex app shows session `sidecar` with window `W` active and block `B` focused, and the exit code is 0
 
 ### Requirement: Remote Control fallback
 When Rex refuses to change the app's view because Remote Control is off or no app client is connected, `switch-session` SHALL still focus the picked window or block inside its session, print to stderr a hint naming the target session and saying how to turn on Remote Control, and exit with code 0.
 
 #### Scenario: Remote Control off
-- **WHEN** Remote Control is off and the user picks session `shuffle` under Rex
-- **THEN** stderr names `shuffle` and explains how to turn on Remote Control, the app view is unchanged, and the exit code is 0
+- **WHEN** Remote Control is off and the user picks session `sidecar` under Rex
+- **THEN** stderr names `sidecar` and explains how to turn on Remote Control, the app view is unchanged, and the exit code is 0
 
 ### Requirement: Rex recency ranking
 Under `switch-session` on Rex, sessions SHALL be listed current first, then sessions in pane-mux's recently-switched list from most to least recent, then the remaining sessions in Rex's session order. Sessions whose labels match `exclude_from_recency` SHALL come after all of those, ordered by label. The current session SHALL stay first even when excluded. The cursor SHALL open on the first non-current session.
 
 #### Scenario: Recent first, then Rex order
-- **WHEN** Rex orders sessions `kahi`, `shuffle`, `notes`, `scratch`, the client is on `kahi`, and pane-mux previously switched to `notes` and before that to `kahi`
-- **THEN** the sessions column lists `kahi`, `notes`, `shuffle`, `scratch`, with the cursor on `notes`
+- **WHEN** Rex orders sessions `kahi`, `sidecar`, `notes`, `scratch`, the client is on `kahi`, and pane-mux previously switched to `notes` and before that to `kahi`
+- **THEN** the sessions column lists `kahi`, `notes`, `sidecar`, `scratch`, with the cursor on `notes`
 
 #### Scenario: No history yet
-- **WHEN** pane-mux has never switched sessions under Rex and Rex orders sessions `kahi`, `shuffle`, `notes`, with the client on `shuffle`
-- **THEN** the sessions column lists `shuffle`, `kahi`, `notes`
+- **WHEN** pane-mux has never switched sessions under Rex and Rex orders sessions `kahi`, `sidecar`, `notes`, with the client on `sidecar`
+- **THEN** the sessions column lists `sidecar`, `kahi`, `notes`
 
 #### Scenario: Excluded session
 - **WHEN** `exclude_from_recency = ["scratch"]` and `scratch` is the most recently switched-to session
@@ -135,7 +135,7 @@ On the Rex backend, any paste that would move a block into a different session S
 - **THEN** the message `rex does not allow moving panes to different session` is shown, no prompt opens, and nothing moves
 
 #### Scenario: Paste into another session's window
-- **WHEN** a block from session `kahi` is cut and the user pastes into a window of session `shuffle`
+- **WHEN** a block from session `kahi` is cut and the user pastes into a window of session `sidecar`
 - **THEN** the same message is shown and nothing moves
 
 #### Scenario: Under move-pane

@@ -39,8 +39,8 @@ pub(super) fn rex_shaped() -> FakeTmux {
                 ..Session::default()
             },
             Session {
-                id: "session:shuffle".into(),
-                name: "shuffle".into(),
+                id: "session:sidecar".into(),
+                name: "sidecar".into(),
                 windows: vec![window("shell", 1, vec![pane("shell", 1, "zsh", false)])],
                 ..Session::default()
             },

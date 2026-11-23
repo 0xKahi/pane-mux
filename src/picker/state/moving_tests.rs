@@ -50,8 +50,8 @@ fn submit(state: &mut State, fake: &FakeTmux, text: &str) -> Option<Exit> {
 fn rex_refuses_cross_session_pastes_and_keeps_cut() {
     for (session, focus, cut_locked) in [
         ("session:kahi", Level::Session, false),
-        ("session:shuffle", Level::Window, false),
-        ("session:shuffle", Level::Pane, true),
+        ("session:sidecar", Level::Window, false),
+        ("session:sidecar", Level::Pane, true),
     ] {
         let fake = rex_shaped();
         let mut state = State::load(
