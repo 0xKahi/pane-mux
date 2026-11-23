@@ -19,11 +19,11 @@ use crate::{
     picker::{PickerOptions, SessionOrder, State},
 };
 
-const REAL: &str = include_str!("fixtures/snapshot.json");
-const KAHI: &str = "session:01a1fa96-984e-7cf4-987f-c3267e96063a";
-const HERE: &str = "block:01a20544-961c-77fa-a9ed-4987cd6e22b7";
-const WINDOW: &str = "window:01a20544-6ba1-7562-90a1-a210ecad287e";
-const APP: &str = "client:01a200d8-c685-7641-8339-76f0f2a2c748";
+const SNAPSHOT: &str = include_str!("fixtures/snapshot.json");
+const WORK: &str = "session:00000000-0000-7000-8000-000000000001";
+const HERE: &str = "block:00000000-0000-7000-8000-0000006e22b7";
+const WINDOW: &str = "window:00000000-0000-7000-8000-000000000025";
+const APP: &str = "client:00000000-0000-7000-8000-000000000022";
 
 fn setup(snapshot: &str, block: Option<&str>) -> (RexCli, FixtureRunner) {
     let runner = FixtureRunner::default();
@@ -65,15 +65,15 @@ fn snapshot(sessions: &[Value]) -> String {
 }
 
 #[test]
-fn real_tree_preserves_rex_order_and_marks_current_minimized_float() {
-    let (rex, runner) = setup(REAL, Some(HERE));
+fn mock_tree_preserves_rex_order_and_marks_current_minimized_float() {
+    let (rex, runner) = setup(SNAPSHOT, Some(HERE));
     let tree = rex.tree().unwrap();
     assert_eq!(
         tree.sessions
             .iter()
             .map(|s| s.name.as_str())
             .collect::<Vec<_>>(),
-        ["kahi", "shuffle", "shuffle-be"]
+        ["work", "notes", "scratch"]
     );
     let windows = &tree.sessions[0].windows;
     assert_eq!(
@@ -82,9 +82,9 @@ fn real_tree_preserves_rex_order_and_marks_current_minimized_float() {
             .take(3)
             .map(|w| (w.index, w.name.as_str()))
             .collect::<Vec<_>>(),
-        [(1, "config"), (2, "pi"), (3, "pane-mux")]
+        [(1, "editor"), (2, "logs"), (3, "build")]
     );
-    assert_eq!(windows[0].panes[0].command, "nvim");
+    assert_eq!(windows[0].panes[0].command, "vim");
     let w = windows.iter().find(|w| w.active).unwrap();
     assert_eq!(w.id, WINDOW);
     assert_eq!(
@@ -97,7 +97,7 @@ fn real_tree_preserves_rex_order_and_marks_current_minimized_float() {
     assert_eq!(
         rex.current().unwrap(),
         Some(Current {
-            session_id: KAHI.into(),
+            session_id: WORK.into(),
             window_id: WINDOW.into(),
             pane_id: HERE.into()
         })
@@ -108,7 +108,7 @@ fn real_tree_preserves_rex_order_and_marks_current_minimized_float() {
         rex.current().unwrap(),
         None,
     );
-    for id in [KAHI, WINDOW, HERE] {
+    for id in [WORK, WINDOW, HERE] {
         assert!(state.is_current(id));
     }
     assert!(tree.stash_counts().is_empty());
@@ -147,20 +147,20 @@ fn handles_lua_empty_lists_missing_focus_and_process_label_fallback() {
 
 #[test]
 fn backend_target_strings_and_move_pane_options() {
-    let (rex, r) = setup(REAL, Some(HERE));
+    let (rex, r) = setup(SNAPSHOT, Some(HERE));
     let tree = rex.tree().unwrap();
     let target = Target {
-        session_id: KAHI.into(),
+        session_id: WORK.into(),
         window_id: Some(WINDOW.into()),
         pane_id: Some(HERE.into()),
-        session: "kahi".into(),
+        session: "work".into(),
         window_index: 4,
         pane_index: 2,
     };
     for (level, id, display) in [
-        (Level::Session, KAHI, "kahi"),
-        (Level::Window, WINDOW, "kahi:4"),
-        (Level::Pane, HERE, "kahi:4.2"),
+        (Level::Session, WORK, "work"),
+        (Level::Window, WINDOW, "work:4"),
+        (Level::Pane, HERE, "work:4.2"),
     ] {
         assert_eq!(rex.target_string(&tree, &target, level), id);
         assert_eq!(rex.display_target(&tree, &target, level), display);
@@ -194,7 +194,7 @@ fn backend_target_strings_and_move_pane_options() {
 
 #[test]
 fn capture_uses_unscoped_vt_and_keeps_last_500_lines() {
-    let (rex, r) = setup(REAL, None);
+    let (rex, r) = setup(SNAPSHOT, None);
     let args = [
         "capture", "-b", HERE, "--format", "vt", "--unwrap", "--trim",
     ];
@@ -215,7 +215,7 @@ const LAYOUT: &str = "com.superlogical.terminal.shell";
 
 #[test]
 fn creates_renames_and_deletes_with_exact_rex_api_calls() {
-    let (rex, r) = setup(REAL, None);
+    let (rex, r) = setup(SNAPSHOT, None);
     rex.tree().unwrap();
     api(
         &r,
@@ -225,19 +225,19 @@ fn creates_renames_and_deletes_with_exact_rex_api_calls() {
         Ok(include_str!("fixtures/api_create.json")),
     );
     assert_eq!(rex.new_session(Some("notes")).unwrap(), SPIKE);
-    new_window(&r, KAHI, "logs");
-    assert_eq!(rex.new_window(KAHI, Some("logs")).unwrap(), NEW);
+    new_window(&r, WORK, "logs");
+    assert_eq!(rex.new_window(WORK, Some("logs")).unwrap(), NEW);
     api(
         &r,
-        Some(KAHI),
+        Some(WORK),
         "session.set_label",
         json!({"label":"new"}),
         Ok(include_str!("fixtures/api_set_label.json")),
     );
-    rex.rename_session(KAHI, "new").unwrap();
+    rex.rename_session(WORK, "new").unwrap();
     api(
         &r,
-        Some(KAHI),
+        Some(WORK),
         "session.set_window_label",
         json!({"window_id":WINDOW,"label":"new"}),
         Ok(include_str!("fixtures/api_set_window_label.json")),
@@ -245,7 +245,7 @@ fn creates_renames_and_deletes_with_exact_rex_api_calls() {
     rex.rename_window(WINDOW, "new").unwrap();
     api(
         &r,
-        Some(KAHI),
+        Some(WORK),
         "block.close",
         json!({"block_id":HERE}),
         Ok(include_str!("fixtures/api_block_close.json")),
@@ -253,7 +253,7 @@ fn creates_renames_and_deletes_with_exact_rex_api_calls() {
     rex.kill_pane(HERE).unwrap();
     api(
         &r,
-        Some(KAHI),
+        Some(WORK),
         "session.close_window",
         json!({"window_id":WINDOW}),
         Ok(include_str!("fixtures/api_close_window.json")),
@@ -261,18 +261,18 @@ fn creates_renames_and_deletes_with_exact_rex_api_calls() {
     rex.kill_window(WINDOW).unwrap();
     api(
         &r,
-        Some(KAHI),
+        Some(WORK),
         "session.destroy",
         json!({}),
         Ok(include_str!("fixtures/api_destroy.json")),
     );
-    rex.kill_session(KAHI).unwrap();
+    rex.kill_session(WORK).unwrap();
     assert_eq!(r.calls().len(), 8);
 }
 
 #[test]
 fn failed_rename_is_displayed_without_closing_picker() {
-    let (rex, r) = setup(REAL, Some(HERE));
+    let (rex, r) = setup(SNAPSHOT, Some(HERE));
     let mut state = State::new(
         PickerOptions::default(),
         rex.tree().unwrap(),
@@ -282,7 +282,7 @@ fn failed_rename_is_displayed_without_closing_picker() {
     let error = "Error: label is not allowed";
     api(
         &r,
-        Some(KAHI),
+        Some(WORK),
         "session.set_label",
         json!({"label":"x"}),
         Err(error),
@@ -300,7 +300,7 @@ fn failed_rename_is_displayed_without_closing_picker() {
 
 #[test]
 fn switching_focuses_block_then_selects_app_attached_to_left_session() {
-    let (rex, r) = setup(REAL, Some(HERE));
+    let (rex, r) = setup(SNAPSHOT, Some(HERE));
     let tree = rex.tree().unwrap();
     let target = &tree.sessions[1];
     let win = &target.windows[0];
@@ -342,17 +342,17 @@ fn switching_focuses_block_then_selects_app_attached_to_left_session() {
 
 #[test]
 fn missing_app_still_focuses_target_window() {
-    let (rex, r) = setup(REAL, Some(HERE));
+    let (rex, r) = setup(SNAPSHOT, Some(HERE));
     api(
         &r,
-        Some(KAHI),
+        Some(WORK),
         "session.focus_window",
         json!({"window_id":WINDOW}),
         Ok("{}"),
     );
     reply(&r, &["client", "ls", "--json"], Ok(r#"{"clients":{}}"#));
     let hint = rex.switch(WINDOW).unwrap().unwrap();
-    assert!(hint.contains("kahi") && hint.ends_with("no connected Rex app client"));
+    assert!(hint.contains("work") && hint.ends_with("no connected Rex app client"));
 }
 
 struct TempPath(PathBuf);
@@ -401,7 +401,7 @@ fn recent(tree: Tree, current: &str, excluded: &[&str]) -> State {
 #[test]
 fn app_failure_is_nonfatal_and_records_target_then_left_by_whoami_endpoint() {
     let path = TempPath::new();
-    let (rex, r) = setup(REAL, Some(HERE));
+    let (rex, r) = setup(SNAPSHOT, Some(HERE));
     let rex = rex
         .with_history_path(path.0.clone())
         .with_app_client(APP.into());
@@ -411,7 +411,7 @@ fn app_failure_is_nonfatal_and_records_target_then_left_by_whoami_endpoint() {
         Ok(r#"{"api_revision":18,"endpoint":"endpoint"}"#),
     );
     rex.check_api_revision().unwrap();
-    let target = "session:01a1ff68-9419-7376-b92e-3b7fce14a5c8";
+    let target = "session:00000000-0000-7000-8000-000000000005";
     reply(
         &r,
         &[
@@ -426,13 +426,13 @@ fn app_failure_is_nonfatal_and_records_target_then_left_by_whoami_endpoint() {
     );
     let hint = rex.switch(target).unwrap().unwrap();
     assert!(
-        hint.contains("shuffle")
+        hint.contains("notes")
             && hint.contains("Turn on Remote Control in Rex settings")
             && hint.ends_with("Error: Remote Control is disabled")
     );
     let stored: Value = serde_json::from_slice(&std::fs::read(&path.0).unwrap()).unwrap();
-    assert_eq!(stored, json!({"endpoint":[target,KAHI]}));
-    let (next, r) = setup(REAL, None);
+    assert_eq!(stored, json!({"endpoint":[target,WORK]}));
+    let (next, r) = setup(SNAPSHOT, None);
     let next = next.with_history_path(path.0.clone());
     reply(
         &r,
@@ -441,15 +441,15 @@ fn app_failure_is_nonfatal_and_records_target_then_left_by_whoami_endpoint() {
     );
     next.check_api_revision().unwrap();
     let state = recent(next.tree().unwrap(), target, &[]);
-    assert_eq!(state.sessions()[1].id, KAHI);
-    assert_eq!(state.session.as_deref(), Some(KAHI));
+    assert_eq!(state.sessions()[1].id, WORK);
+    assert_eq!(state.session.as_deref(), Some(WORK));
 }
 
 #[test]
 fn recent_order_uses_history_then_rex_order_and_existing_exclusions() {
     let path = TempPath::new();
     let mut tree = Tree {
-        sessions: ["kahi", "shuffle", "notes", "scratch"]
+        sessions: ["work", "inbox", "notes", "scratch"]
             .map(|name| Session {
                 id: name.into(),
                 name: name.into(),
@@ -473,33 +473,33 @@ fn recent_order_uses_history_then_rex_order_and_existing_exclusions() {
     check(
         &mut tree,
         "a",
-        "shuffle",
+        "inbox",
         &[],
-        &["shuffle", "kahi", "notes", "scratch"],
+        &["inbox", "work", "notes", "scratch"],
     );
-    history::record(&path.0, "a", Some("kahi"), "notes").unwrap();
+    history::record(&path.0, "a", Some("work"), "notes").unwrap();
     history::record(&path.0, "a", None, "deleted").unwrap();
     check(
         &mut tree,
         "a",
-        "kahi",
+        "work",
         &[],
-        &["kahi", "notes", "shuffle", "scratch"],
+        &["work", "notes", "inbox", "scratch"],
     );
     history::record(&path.0, "a", None, "scratch").unwrap();
     check(
         &mut tree,
         "a",
-        "kahi",
-        &["scratch", "kahi"],
-        &["kahi", "notes", "shuffle", "scratch"],
+        "work",
+        &["scratch", "work"],
+        &["work", "notes", "inbox", "scratch"],
     );
     check(
         &mut tree,
         "other",
-        "kahi",
+        "work",
         &[],
-        &["kahi", "shuffle", "notes", "scratch"],
+        &["work", "inbox", "notes", "scratch"],
     );
     for i in 0..55 {
         history::record(&path.0, "cap", None, &i.to_string()).unwrap();
@@ -510,12 +510,12 @@ fn recent_order_uses_history_then_rex_order_and_existing_exclusions() {
     assert_eq!(all["cap"][49], "5");
 }
 
-const SPIKE: &str = "session:01a20593-ba47-7659-b62a-f4f49c2e8b97";
-const NEW: &str = "window:01a20593-ba93-7153-8be7-390ea5ba7a9d";
-const PLACEHOLDER: &str = "block:01a20593-ba89-71dc-a359-32c788833b9f";
-const PANE: &str = "block:01a20593-ba69-7e57-b192-6ad9078f63a0";
-const SOURCE: &str = "window:01a20593-ba54-7a87-a1bc-16ec6653ac73";
-const FOCUSED: &str = "block:01a20593-ba47-76e5-8989-ac9c1a88acb4";
+const SPIKE: &str = "session:00000000-0000-7000-8000-000000000041";
+const NEW: &str = "window:00000000-0000-7000-8000-000000000048";
+const PLACEHOLDER: &str = "block:00000000-0000-7000-8000-000000000047";
+const PANE: &str = "block:00000000-0000-7000-8000-000000000045";
+const SOURCE: &str = "window:00000000-0000-7000-8000-000000000043";
+const FOCUSED: &str = "block:00000000-0000-7000-8000-000000000042";
 
 fn new_window(r: &FixtureRunner, session: &str, name: &str) {
     api(

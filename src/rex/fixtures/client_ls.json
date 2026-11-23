@@ -1,45 +1,45 @@
 {
   "clients": [
     {
-      "client_id": "client:01a200d8-c682-77fe-a859-4a5041168845",
+      "client_id": "client:00000000-0000-7000-8000-000000000021",
       "principal": {
         "kind": "peer",
         "transport": "unix",
-        "display": "uid 501",
-        "uid": 501,
-        "gid": 20,
-        "pid": 16927
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2000
       },
-      "connected_at": "2026-11-22T09:22:16.322524+08:00",
+      "connected_at": "2025-01-01T00:00:01Z",
       "connection_state": "connected"
     },
     {
-      "client_id": "client:01a200d8-c685-7641-8339-76f0f2a2c748",
+      "client_id": "client:00000000-0000-7000-8000-000000000022",
       "info": {
         "kind": "app",
         "platform": "macos",
         "name": "Rex",
         "version": "0.1.0 (2061)",
-        "label": "jojo-mac"
+        "label": "test-mac"
       },
       "principal": {
         "kind": "peer",
         "transport": "unix",
-        "display": "uid 501",
-        "uid": 501,
-        "gid": 20,
-        "pid": 16927
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2000
       },
-      "connected_at": "2026-11-22T09:22:16.32541+08:00",
+      "connected_at": "2025-01-01T00:00:02Z",
       "connection_state": "connected",
       "session_ids": [
-        "session:01a1fa96-984e-7cf4-987f-c3267e96063a",
-        "session:01a1ff68-9419-7376-b92e-3b7fce14a5c8",
-        "session:01a20565-b4f8-7806-9a75-80f4aff16fff"
+        "session:00000000-0000-7000-8000-000000000001",
+        "session:00000000-0000-7000-8000-000000000005",
+        "session:00000000-0000-7000-8000-000000000030"
       ]
     },
     {
-      "client_id": "client:01a20592-f503-746c-be89-b856a071dd0f",
+      "client_id": "client:00000000-0000-7000-8000-000000000037",
       "info": {
         "kind": "cli",
         "platform": "macos",
@@ -49,16 +49,16 @@
       "principal": {
         "kind": "peer",
         "transport": "unix",
-        "display": "uid 501",
-        "uid": 501,
-        "gid": 20,
-        "pid": 83961
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2005
       },
-      "connected_at": "2026-11-23T07:24:06.78729+08:00",
+      "connected_at": "2025-01-01T00:00:03Z",
       "connection_state": "connected"
     },
     {
-      "client_id": "client:01a20592-f503-7553-9faa-b8015965ac29",
+      "client_id": "client:00000000-0000-7000-8000-000000000038",
       "info": {
         "kind": "cli",
         "platform": "macos",
@@ -68,16 +68,16 @@
       "principal": {
         "kind": "peer",
         "transport": "unix",
-        "display": "uid 501",
-        "uid": 501,
-        "gid": 20,
-        "pid": 83955
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2003
       },
-      "connected_at": "2026-11-23T07:24:06.78735+08:00",
+      "connected_at": "2025-01-01T00:00:04Z",
       "connection_state": "connected"
     },
     {
-      "client_id": "client:01a20592-f503-76ab-b53c-0a305d01e567",
+      "client_id": "client:00000000-0000-7000-8000-000000000039",
       "info": {
         "kind": "cli",
         "platform": "macos",
@@ -87,16 +87,16 @@
       "principal": {
         "kind": "peer",
         "transport": "unix",
-        "display": "uid 501",
-        "uid": 501,
-        "gid": 20,
-        "pid": 83962
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2006
       },
-      "connected_at": "2026-11-23T07:24:06.787437+08:00",
+      "connected_at": "2025-01-01T00:00:05Z",
       "connection_state": "connected"
     },
     {
-      "client_id": "client:01a20592-f503-78ae-bd81-d50a9315aab0",
+      "client_id": "client:00000000-0000-7000-8000-000000000040",
       "info": {
         "kind": "cli",
         "platform": "macos",
@@ -106,12 +106,12 @@
       "principal": {
         "kind": "peer",
         "transport": "unix",
-        "display": "uid 501",
-        "uid": 501,
-        "gid": 20,
-        "pid": 83956
+        "display": "uid 1000",
+        "uid": 1000,
+        "gid": 1000,
+        "pid": 2004
       },
-      "connected_at": "2026-11-23T07:24:06.787569+08:00",
+      "connected_at": "2025-01-01T00:00:06Z",
       "connection_state": "connected"
     }
   ]

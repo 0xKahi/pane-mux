@@ -1,14 +1,14 @@
 {
-  "session_id": "session:01a1fa96-984e-7cf4-987f-c3267e96063a",
+  "session_id": "session:00000000-0000-7000-8000-000000000001",
   "block": {
-    "block_id": "block:01a20544-961c-77fa-a9ed-4987cd6e22b7",
-    "label": "rex-intergration",
+    "block_id": "block:00000000-0000-7000-8000-0000006e22b7",
+    "label": "terminal",
     "creator_name": "com.superlogical.terminal",
     "flavor": "com.superlogical.terminal.shell",
-    "host_id": "8b284589-8e65-4da5-a15b-93b87673a13c",
+    "host_id": "00000000-0000-7000-8000-000000000061",
     "placement": "placed",
-    "window_id": "window:01a20544-6ba1-7562-90a1-a210ecad287e",
-    "owner": "client:01a200d8-c685-7641-8339-76f0f2a2c748"
+    "window_id": "window:00000000-0000-7000-8000-000000000025",
+    "owner": "client:00000000-0000-7000-8000-000000000022"
   },
   "api": {
     "events": {
