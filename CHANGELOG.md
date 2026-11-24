@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1](https://github.com/0xKahi/pane-mux/compare/v0.4.0...v0.4.1) - 2026-11-24
+
+### Fixed
+
+- *(rex)* hide the picker's own floating block from the panes column ([#12](https://github.com/0xKahi/pane-mux/pull/12))
+
 ## [0.4.0](https://github.com/0xKahi/pane-mux/compare/v0.3.1...v0.4.0) - 2026-11-23
 
 ### Added
