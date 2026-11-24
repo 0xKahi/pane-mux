@@ -23,6 +23,8 @@ pub struct RexCli {
     history_path: Option<PathBuf>,
     endpoint: RefCell<Option<String>>,
     last_tree: RefCell<Option<Tree>>,
+    // Boxed to keep `Backend::Rex` small enough for clippy::large_enum_variant.
+    last_current: RefCell<Option<Box<Current>>>,
 }
 
 impl RexCli {
@@ -48,6 +50,7 @@ impl RexCli {
             history_path: None,
             endpoint: RefCell::default(),
             last_tree: RefCell::default(),
+            last_current: RefCell::default(),
         }
     }
 
@@ -179,7 +182,8 @@ impl RexCli {
         let output = self.run(&["session", "inspect", session, "--json"], UNSCOPED)?;
         let view: SessionView =
             serde_json::from_str(&output).context("invalid Rex session inspect response")?;
-        Ok(view.into())
+        // Move cleanup must see every block when testing whether a window is empty.
+        Ok(view.into_session(None).0)
     }
 
     fn finish_move(&self, before: &Session, empty_candidates: &[&str]) -> Result<()> {
@@ -400,9 +404,7 @@ impl Mux for RexCli {
     fn tree(&self) -> Result<Tree> {
         let output = self.run(&["do", "-e", SCRIPT, "--json"], UNSCOPED)?;
         let snapshot: Snapshot = serde_json::from_str(&output).context("invalid Rex snapshot")?;
-        let mut tree = Tree {
-            sessions: snapshot.sessions.into_iter().map(Session::from).collect(),
-        };
+        let (mut tree, current) = snapshot.into_tree(self.block.as_deref());
         let endpoint = self.endpoint.borrow();
         history::rank(
             &mut tree,
@@ -410,6 +412,7 @@ impl Mux for RexCli {
             self.server.as_deref().or(endpoint.as_deref()),
         );
         self.last_tree.replace(Some(tree.clone()));
+        self.last_current.replace(current.map(Box::new));
         Ok(tree)
     }
 
@@ -438,13 +441,13 @@ impl Mux for RexCli {
     }
 
     fn current(&self) -> Result<Option<Current>> {
-        let Some(block) = &self.block else {
+        if self.block.is_none() {
             return Ok(None);
-        };
-        if let Some(tree) = self.last_tree.borrow().as_ref() {
-            return Ok(pane_location(tree, block));
         }
-        Ok(pane_location(&self.tree()?, block))
+        if self.last_tree.borrow().is_none() {
+            self.tree()?;
+        }
+        Ok(self.last_current.borrow().as_deref().cloned())
     }
 
     fn resolve_pane(&self, target: &str) -> Result<String> {

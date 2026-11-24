@@ -61,10 +61,13 @@ rex.bind('ctrl+b>m', function(ctx)
 end)
 ```
 
-The floating block closes when pane-mux exits normally. The picker shows a
-placeholder when previewing its own block. The move binding passes the
-source block ID before opening the float, so it moves the intended block,
-not the picker.
+The floating block closes when pane-mux exits normally. The panes column leaves
+out the picker's own floating block, so pane numbering has no gap. The picker
+shows a placeholder when previewing its own block only if pane-mux runs in a
+tiled block, such as an ordinary shell block.
+
+The move binding passes the source block ID before opening the float, so it
+moves the intended block, not the picker.
 
 For `switch-session` to change the app view, enable **Remote Control** under
 **Settings > General > Client Info**. If it's off or no app client is

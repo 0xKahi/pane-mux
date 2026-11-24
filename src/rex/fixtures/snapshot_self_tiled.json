@@ -1,0 +1,37 @@
+{
+  "sessions": [
+    {
+      "session_id": "session:home",
+      "label": "home",
+      "active_window_id": "window:pi",
+      "windows": [
+        {
+          "window_id": "window:pi",
+          "label": "pi",
+          "focused_block_id": "block:picker",
+          "layers": [
+            {
+              "kind": "tiled",
+              "blocks": [
+                { "block_id": "block:nvim", "label": "shell", "process_name": "nvim" },
+                { "block_id": "block:zsh", "label": "shell", "process_name": "zsh" },
+                { "block_id": "block:picker", "label": "shell", "process_name": "pane-mux" }
+              ]
+            },
+            {
+              "kind": "floating",
+              "blocks": [
+                { "block_id": "block:htop", "label": "shell", "process_name": "htop" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "session_id": "session:sidecar",
+      "label": "sidecar",
+      "windows": {}
+    }
+  ]
+}
