@@ -64,47 +64,81 @@ struct Block {
     process_name: Option<String>,
 }
 
-impl From<SessionView> for Session {
-    fn from(view: SessionView) -> Self {
-        Self {
-            id: view.session_id,
-            name: view.label,
-            windows: view
-                .windows
-                .into_iter()
-                .enumerate()
-                .map(|(i, w)| {
-                    let active = view.active_window_id.as_ref() == Some(&w.window_id);
-                    let mut layers = w.layers;
-                    layers.sort_by_key(|layer| layer.kind == "floating");
-                    let panes = layers
-                        .into_iter()
-                        .flat_map(|layer| {
-                            let floating = layer.kind == "floating";
-                            layer.blocks.into_iter().map(move |block| (block, floating))
-                        })
-                        .enumerate()
-                        .map(|(i, (b, floating))| Pane {
-                            index: (i + 1) as u32,
-                            active: w.focused_block_id.as_ref() == Some(&b.block_id),
-                            id: b.block_id,
-                            command: b.process_name.filter(|s| !s.is_empty()).unwrap_or(b.label),
-                            floating,
-                            ..Pane::default()
-                        })
-                        .collect();
-                    Window {
-                        id: w.window_id,
+impl Snapshot {
+    pub(super) fn into_tree(self, self_block: Option<&str>) -> (Tree, Option<Current>) {
+        let mut current = None;
+        let sessions = self
+            .sessions
+            .into_iter()
+            .map(|view| {
+                let (session, location) = view.into_session(self_block);
+                if current.is_none() {
+                    current = location;
+                }
+                session
+            })
+            .collect();
+        (Tree { sessions }, current)
+    }
+}
+
+impl SessionView {
+    pub(super) fn into_session(self, self_block: Option<&str>) -> (Session, Option<Current>) {
+        let mut current = None;
+        let windows = self
+            .windows
+            .into_iter()
+            .enumerate()
+            .map(|(i, w)| {
+                let active = self.active_window_id.as_ref() == Some(&w.window_id);
+                let mut layers = w.layers;
+                layers.sort_by_key(|layer| layer.kind == "floating");
+                let panes = layers
+                    .into_iter()
+                    .flat_map(|layer| {
+                        let floating = layer.kind == "floating";
+                        layer.blocks.into_iter().map(move |block| (block, floating))
+                    })
+                    .filter(|(block, floating)| {
+                        if self_block != Some(block.block_id.as_str()) {
+                            return true;
+                        }
+                        current.get_or_insert_with(|| Current {
+                            session_id: self.session_id.clone(),
+                            window_id: w.window_id.clone(),
+                            pane_id: block.block_id.clone(),
+                        });
+                        !floating
+                    })
+                    .enumerate()
+                    .map(|(i, (b, floating))| Pane {
                         index: (i + 1) as u32,
-                        name: w.label,
-                        active,
-                        panes,
-                        ..Window::default()
-                    }
-                })
-                .collect(),
-            ..Session::default()
-        }
+                        active: w.focused_block_id.as_ref() == Some(&b.block_id),
+                        id: b.block_id,
+                        command: b.process_name.filter(|s| !s.is_empty()).unwrap_or(b.label),
+                        floating,
+                        ..Pane::default()
+                    })
+                    .collect();
+                Window {
+                    id: w.window_id,
+                    index: (i + 1) as u32,
+                    name: w.label,
+                    active,
+                    panes,
+                    ..Window::default()
+                }
+            })
+            .collect();
+        (
+            Session {
+                id: self.session_id,
+                name: self.label,
+                windows,
+                ..Session::default()
+            },
+            current,
+        )
     }
 }
 

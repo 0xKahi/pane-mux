@@ -58,8 +58,10 @@ Rex, use the built-in minimize instead.
 
 Run pane-mux from a Rex block, or add the [Rex key bindings](docs/usage-examples.md#open-pane-mux-in-a-rex-floating-block)
 to launch `switch-session` (`Ctrl-b`, then `o`) or `move-pane` (`Ctrl-b`, then
-`m`) in a floating block. The picker shows a placeholder instead of previewing
-its own block.
+`m`) in a floating block. The panes column leaves out the picker's own floating
+block, so pane numbering has no gap. If you run pane-mux in a tiled block (for
+example, by typing it into an ordinary shell block), that block stays listed
+and shows a placeholder when previewed.
 
 To let `switch-session` change the app view, enable **Remote Control** in
 **Settings > General > Client Info**. If Remote Control is off or no app

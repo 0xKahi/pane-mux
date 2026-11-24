@@ -6,7 +6,7 @@ use super::{
     FixtureRunner, RexCli, RunnerError,
     client::bounds,
     history,
-    snapshot::{SCRIPT, UNSCOPED},
+    snapshot::{SCRIPT, Snapshot, UNSCOPED},
 };
 use crate::{
     commands::move_pane,
@@ -20,6 +20,13 @@ use crate::{
 };
 
 const SNAPSHOT: &str = include_str!("fixtures/snapshot.json");
+const SELF_FLOATING: &str = include_str!("fixtures/snapshot_self_floating.json");
+const SELF_MINIMIZED: &str = include_str!("fixtures/snapshot_self_minimized.json");
+const SELF_TILED: &str = include_str!("fixtures/snapshot_self_tiled.json");
+const HOME: &str = "session:home";
+const SIDECAR: &str = "session:sidecar";
+const PI: &str = "window:pi";
+const PICKER: &str = "block:picker";
 const WORK: &str = "session:00000000-0000-7000-8000-000000000001";
 const HERE: &str = "block:00000000-0000-7000-8000-0000006e22b7";
 const WINDOW: &str = "window:00000000-0000-7000-8000-000000000025";
@@ -65,8 +72,8 @@ fn snapshot(sessions: &[Value]) -> String {
 }
 
 #[test]
-fn mock_tree_preserves_rex_order_and_marks_current_minimized_float() {
-    let (rex, runner) = setup(SNAPSHOT, Some(HERE));
+fn mock_tree_preserves_rex_order_and_lists_other_minimized_floats() {
+    let (rex, runner) = setup(SNAPSHOT, None);
     let tree = rex.tree().unwrap();
     assert_eq!(
         tree.sessions
@@ -94,23 +101,7 @@ fn mock_tree_preserves_rex_order_and_marks_current_minimized_float() {
             .collect::<Vec<_>>(),
         [(1, false, true), (2, true, false)]
     );
-    assert_eq!(
-        rex.current().unwrap(),
-        Some(Current {
-            session_id: WORK.into(),
-            window_id: WINDOW.into(),
-            pane_id: HERE.into()
-        })
-    );
-    let state = State::new(
-        PickerOptions::default(),
-        tree.clone(),
-        rex.current().unwrap(),
-        None,
-    );
-    for id in [WORK, WINDOW, HERE] {
-        assert!(state.is_current(id));
-    }
+    assert_eq!(rex.current().unwrap(), None);
     assert!(tree.stash_counts().is_empty());
     assert!(
         windows
@@ -119,6 +110,109 @@ fn mock_tree_preserves_rex_order_and_marks_current_minimized_float() {
     );
     assert_eq!(runner.calls().len(), 1);
     assert_eq!(runner.calls()[0].env_remove, UNSCOPED);
+}
+
+fn picker_current() -> Current {
+    Current {
+        session_id: HOME.into(),
+        window_id: PI.into(),
+        pane_id: PICKER.into(),
+    }
+}
+
+#[test]
+fn snapshot_filters_only_the_floating_self_block_before_numbering() {
+    for (fixture, tiled) in [
+        (SELF_FLOATING, false),
+        (SELF_MINIMIZED, false),
+        (SELF_TILED, true),
+    ] {
+        let parse = || serde_json::from_str::<Snapshot>(fixture).unwrap();
+        let (tree, current) = parse().into_tree(Some(PICKER));
+        assert_eq!(current, Some(picker_current()));
+        let rows = |tree: &Tree| {
+            tree.sessions[0].windows[0]
+                .panes
+                .iter()
+                .map(|p| (p.index, p.command.clone(), p.floating))
+                .collect::<Vec<_>>()
+        };
+        let (unfiltered, no_current) = parse().into_tree(None);
+        assert_eq!(no_current, None);
+        assert_eq!(
+            rows(&unfiltered),
+            [
+                (1, "nvim".into(), false),
+                (2, "zsh".into(), false),
+                (3, "pane-mux".into(), !tiled),
+                (4, "htop".into(), true),
+            ]
+        );
+        if tiled {
+            assert_eq!(tree, unfiltered);
+        } else {
+            assert_eq!(
+                rows(&tree),
+                [
+                    (1, "nvim".into(), false),
+                    (2, "zsh".into(), false),
+                    (3, "htop".into(), true),
+                ]
+            );
+        }
+    }
+}
+
+#[test]
+fn refresh_keeps_self_float_hidden_and_clears_stale_current() {
+    let (rex, r) = setup(SELF_FLOATING, Some(PICKER));
+    reply(&r, &["do", "-e", SCRIPT, "--json"], Ok(SELF_FLOATING));
+    for _ in 0..2 {
+        let tree = rex.tree().unwrap();
+        let panes = &tree.sessions[0].windows[0].panes;
+        assert_eq!(panes.len(), 3);
+        assert!(panes.iter().all(|p| p.id != PICKER));
+        assert_eq!(rex.current().unwrap(), Some(picker_current()));
+    }
+    reply(&r, &["do", "-e", SCRIPT, "--json"], Ok(SNAPSHOT));
+    rex.tree().unwrap();
+    assert_eq!(rex.current().unwrap(), None);
+    assert_eq!(r.calls().len(), 3);
+}
+
+#[test]
+fn current_builds_tree_once_and_marks_only_listed_rows() {
+    for (fixture, tiled) in [(SELF_FLOATING, false), (SELF_TILED, true)] {
+        let (rex, r) = setup(fixture, Some(PICKER));
+        assert_eq!(rex.current().unwrap(), Some(picker_current()));
+        reply(&r, &["do", "-e", SCRIPT, "--json"], Ok(fixture));
+        let state = State::new(
+            PickerOptions::default(),
+            rex.tree().unwrap(),
+            rex.current().unwrap(),
+            rex.suppressed_pane(),
+        );
+        assert!(state.is_current(&state.sessions()[0].id));
+        assert!(state.is_current(&state.windows()[0].id));
+        assert_eq!(
+            state
+                .panes()
+                .iter()
+                .filter(|p| state.is_current(&p.id))
+                .map(|p| p.id.as_str())
+                .collect::<Vec<_>>(),
+            if tiled { &[PICKER][..] } else { &[] }
+        );
+        assert_eq!(state.preview_suppressed(), tiled);
+        assert_eq!(r.calls().len(), 2);
+    }
+    let (rex, r) = setup(SELF_FLOATING, Some("block:unknown"));
+    assert_eq!(rex.current().unwrap(), None);
+    assert_eq!(rex.current().unwrap(), None);
+    assert_eq!(r.calls().len(), 1);
+    let (rex, r) = setup(SELF_FLOATING, None);
+    assert_eq!(rex.current().unwrap(), None);
+    assert!(r.calls().is_empty());
 }
 
 #[test]
@@ -190,6 +284,41 @@ fn backend_target_strings_and_move_pane_options() {
         "pane not found: nosuchblock"
     );
     assert!(r.calls().iter().all(|call| call.env_remove == UNSCOPED));
+}
+
+#[test]
+fn move_pane_without_target_from_self_float_cannot_paste() {
+    let (rex, r) = setup(SELF_FLOATING, Some(PICKER));
+    let options = move_pane::options(None, &rex, rex.in_client()).unwrap();
+    assert_eq!(options.cut.as_deref(), Some(PICKER));
+    assert_eq!(options.initial_pane.as_deref(), Some(PICKER));
+    assert!(options.cut_locked);
+
+    for _ in 0..2 {
+        reply(&r, &["do", "-e", SCRIPT, "--json"], Ok(SELF_FLOATING));
+    }
+    reply(
+        &r,
+        &[
+            "capture",
+            "-b",
+            "block:nvim",
+            "--format",
+            "vt",
+            "--unwrap",
+            "--trim",
+        ],
+        Ok("nvim\n"),
+    );
+    let mut state = State::load(options, &rex, rex.suppressed_pane()).unwrap();
+    let keymap = Keymap::from_toml(&preset::keymap(), None).unwrap();
+    assert!(
+        state
+            .handle_key("p".parse().unwrap(), &keymap, &rex)
+            .is_none()
+    );
+    assert_eq!(state.cut, None);
+    assert_eq!(state.message.as_deref(), Some("Cut pane no longer exists"));
 }
 
 #[test]
@@ -443,6 +572,51 @@ fn app_failure_is_nonfatal_and_records_target_then_left_by_whoami_endpoint() {
     let state = recent(next.tree().unwrap(), target, &[]);
     assert_eq!(state.sessions()[1].id, WORK);
     assert_eq!(state.session.as_deref(), Some(WORK));
+}
+
+#[test]
+fn switching_from_hidden_float_ranks_and_records_the_session_left() {
+    let path = TempPath::new();
+    let (rex, r) = setup(SELF_FLOATING, Some(PICKER));
+    let rex = rex
+        .with_history_path(path.0.clone())
+        .with_app_client(APP.into());
+    reply(
+        &r,
+        &["whoami", "--json"],
+        Ok(r#"{"api_revision":18,"endpoint":"endpoint"}"#),
+    );
+    rex.check_api_revision().unwrap();
+    history::record(&path.0, "endpoint", None, SIDECAR).unwrap();
+    let tree = rex.tree().unwrap();
+    assert!(tree.sessions[1].last_attached > tree.sessions[0].last_attached);
+    let state = State::new(
+        PickerOptions {
+            order: SessionOrder::Recent,
+            ..PickerOptions::default()
+        },
+        tree,
+        rex.current().unwrap(),
+        rex.suppressed_pane(),
+    );
+    assert_eq!(state.sessions()[0].id, HOME);
+    assert_eq!(state.session.as_deref(), Some(SIDECAR));
+
+    reply(
+        &r,
+        &[
+            "-C",
+            APP,
+            "do",
+            "session.select",
+            "session_id=session:sidecar",
+            "--json",
+        ],
+        Ok(include_str!("fixtures/select_success.json")),
+    );
+    assert_eq!(rex.switch(SIDECAR).unwrap(), None);
+    let stored: Value = serde_json::from_slice(&std::fs::read(&path.0).unwrap()).unwrap();
+    assert_eq!(stored, json!({"endpoint":[SIDECAR,HOME]}));
 }
 
 #[test]
