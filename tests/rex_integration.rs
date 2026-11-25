@@ -1,4 +1,4 @@
-//! Opt-in live test. All mutations are scoped to sessions created by this test.
+//! Opt-in live tests. All mutations are scoped to sessions created by these tests.
 
 use std::{
     thread,
@@ -67,6 +67,90 @@ fn inspect(rex: &RexCli, id: &str) -> Value {
 
 fn foreground(rex: &RexCli, id: &str, block: &str) -> Value {
     json(rex, &["block", "call", "-s", id, "-b", block, "process"])["foreground"].clone()
+}
+
+// Rex uses CSI sequences for styling and cursor positioning in VT captures.
+fn strip_csi(text: &str) -> String {
+    let mut plain = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' && chars.next_if_eq(&'[').is_some() {
+            for param in chars.by_ref() {
+                if ('\x40'..='\x7e').contains(&param) {
+                    break;
+                }
+            }
+        } else {
+            plain.push(ch);
+        }
+    }
+    plain
+}
+
+#[test]
+fn live_rex_preview_shows_only_visible_screen() {
+    if std::env::var("PANE_MUX_REX_TESTS").as_deref() != Ok("1") {
+        return;
+    }
+    let server = std::env::var("REX_SERVER").expect("set REX_SERVER to a running Rex server");
+    assert!(!server.trim().is_empty(), "REX_SERVER must not be blank");
+    let mut sessions = Sessions {
+        rex: RexCli::with_runner(Some(server), None, ProcessRunner),
+        ids: Vec::new(),
+    };
+    sessions.rex.check_api_revision().unwrap();
+    let a = sessions.create(&format!("pane-mux-preview-test-{}", std::process::id()));
+    let rex = &sessions.rex;
+    let initial = session(rex, &a);
+    let anchor = &initial.windows[0].panes[0].id;
+    let created = json(
+        rex,
+        &[
+            "split",
+            "-s",
+            &a,
+            "-b",
+            anchor,
+            "--focus=false",
+            "--shell=none",
+            "--label",
+            "Preview",
+            "--json",
+            "--",
+            "sh",
+            "-c",
+            "seq 1 2000; exec sleep 300",
+        ],
+    );
+    let block = created["block_ids"][0].as_str().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let preview = loop {
+        if foreground(rex, &a, block)["name"] == "sleep" {
+            let plain = strip_csi(&rex.capture(block).unwrap());
+            if plain.trim_end().lines().last() == Some("2000") {
+                break plain;
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "preview did not reach line 2000 while sleep was running"
+        );
+        thread::sleep(Duration::from_millis(50));
+    };
+
+    let rows = json(rex, &["block", "call", "-s", &a, "-b", block, "size"])["rows"]
+        .as_u64()
+        .unwrap() as usize;
+    let lines: Vec<_> = preview.trim_end().lines().map(str::trim_end).collect();
+    assert!(lines.len() <= rows, "preview exceeds {rows} screen rows");
+    assert_eq!(lines.last(), Some(&"2000"));
+    let first_visible = 2001_usize.saturating_sub(rows);
+    for line in lines.into_iter().filter(|line| !line.is_empty()) {
+        assert!(
+            line.parse::<usize>().is_ok_and(|n| n >= first_visible),
+            "unexpected preview line {line:?}; expected a number >= {first_visible}"
+        );
+    }
 }
 
 #[test]

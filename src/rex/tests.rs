@@ -6,7 +6,7 @@ use super::{
     FixtureRunner, RexCli, RunnerError,
     client::bounds,
     history,
-    snapshot::{SCRIPT, Snapshot, UNSCOPED},
+    snapshot::{CAPTURE, SCRIPT, Snapshot, UNSCOPED},
 };
 use crate::{
     commands::move_pane,
@@ -65,6 +65,15 @@ fn api(
     let params = params.to_string();
     args.extend([method, &params]);
     reply(r, &args, result);
+}
+
+fn capture_reply(r: &FixtureRunner, session: &str, block: &str, output: &str) {
+    let args = json!({"session_id": session, "block_id": block, "budget": 131_072}).to_string();
+    reply(
+        r,
+        &["do", "-e", CAPTURE, "--json", "--args", &args],
+        Ok(output),
+    );
 }
 
 fn snapshot(sessions: &[Value]) -> String {
@@ -297,18 +306,11 @@ fn move_pane_without_target_from_self_float_cannot_paste() {
     for _ in 0..2 {
         reply(&r, &["do", "-e", SCRIPT, "--json"], Ok(SELF_FLOATING));
     }
-    reply(
+    capture_reply(
         &r,
-        &[
-            "capture",
-            "-b",
-            "block:nvim",
-            "--format",
-            "vt",
-            "--unwrap",
-            "--trim",
-        ],
-        Ok("nvim\n"),
+        HOME,
+        "block:nvim",
+        include_str!("fixtures/capture_alt_screen.json"),
     );
     let mut state = State::load(options, &rex, rex.suppressed_pane()).unwrap();
     let keymap = Keymap::from_toml(&preset::keymap(), None).unwrap();
@@ -322,22 +324,106 @@ fn move_pane_without_target_from_self_float_cannot_paste() {
 }
 
 #[test]
-fn capture_uses_unscoped_vt_and_keeps_last_500_lines() {
+fn capture_uses_one_unscoped_call_and_keeps_colored_screen_rows() {
     let (rex, r) = setup(SNAPSHOT, None);
-    let args = [
-        "capture", "-b", HERE, "--format", "vt", "--unwrap", "--trim",
-    ];
-    let capture = include_str!("fixtures/capture.vt");
-    reply(&r, &args, Ok(capture));
-    assert_eq!(rex.capture(HERE).unwrap(), capture.replace("\r\n", "\n"));
-    let long = (0..505).map(|i| format!("{i}\r\n")).collect::<String>();
-    reply(&r, &args, Ok(&long));
-    let tail = rex.capture(HERE).unwrap();
-    assert_eq!(tail.lines().count(), 500);
-    assert!(tail.starts_with("5\n") && tail.ends_with("504\n"));
-    assert!(r.calls().iter().all(|call| call.env_remove == UNSCOPED));
+    capture_reply(
+        &r,
+        WORK,
+        HERE,
+        include_str!("fixtures/capture_history.json"),
+    );
+    assert_eq!(
+        rex.capture(HERE).unwrap(),
+        "\x1b[31mscreen 1\x1b[0m\nscreen 2\n"
+    );
+
+    let calls = r.calls();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(
+        calls[0].args,
+        ["--autostart=false", "do", "-e", SCRIPT, "--json"]
+    );
+    let capture = &calls[1];
+    assert_eq!(capture.env_remove, UNSCOPED);
+    assert_eq!(capture.args.len(), 7);
+    assert_eq!(
+        capture.args[..6],
+        ["--autostart=false", "do", "-e", CAPTURE, "--json", "--args"]
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&capture.args[6]).unwrap(),
+        json!({"session_id": WORK, "block_id": HERE, "budget": 131_072})
+    );
+
     assert_eq!(rex.preview_interval(), Duration::from_secs(1));
     assert!(!rex.cross_session_moves());
+}
+
+#[test]
+fn capture_keeps_all_rows_on_a_partly_filled_screen() {
+    let (rex, r) = setup(SNAPSHOT, None);
+    capture_reply(&r, WORK, HERE, include_str!("fixtures/capture_short.json"));
+    assert_eq!(rex.capture(HERE).unwrap(), "first\nsecond");
+}
+
+#[test]
+fn capture_drops_the_cut_line_from_partial_output() {
+    let (rex, r) = setup(SNAPSHOT, None);
+    for (output, expected) in [
+        (
+            include_str!("fixtures/capture_partial.json"),
+            "screen 1\nscreen 2",
+        ),
+        (
+            include_str!("fixtures/capture_partial_short.json"),
+            "screen\n",
+        ),
+        (include_str!("fixtures/capture_partial_no_newline.json"), ""),
+    ] {
+        capture_reply(&r, WORK, HERE, output);
+        assert_eq!(rex.capture(HERE).unwrap(), expected);
+    }
+}
+
+#[test]
+fn capture_leaves_alternate_screen_unchanged() {
+    let (rex, r) = setup(SNAPSHOT, None);
+    capture_reply(
+        &r,
+        WORK,
+        HERE,
+        include_str!("fixtures/capture_alt_screen.json"),
+    );
+    assert_eq!(rex.capture(HERE).unwrap(), "nvim\n~\n");
+}
+
+#[test]
+fn capture_keeps_all_output_if_row_count_is_zero() {
+    let (rex, r) = setup(SNAPSHOT, None);
+    capture_reply(
+        &r,
+        WORK,
+        HERE,
+        include_str!("fixtures/capture_zero_rows.json"),
+    );
+    assert_eq!(rex.capture(HERE).unwrap(), "first\nsecond\n");
+}
+
+#[test]
+fn capture_reports_missing_pane_after_refresh() {
+    let (rex, r) = setup(SNAPSHOT, None);
+    rex.tree().unwrap();
+    reply(&r, &["do", "-e", SCRIPT, "--json"], Ok(SNAPSHOT));
+    assert_eq!(
+        rex.capture("block:missing").unwrap_err().to_string(),
+        "pane not found: block:missing"
+    );
+    let calls = r.calls();
+    assert_eq!(calls.len(), 2);
+    assert!(calls.iter().all(|call| {
+        call.args == ["--autostart=false", "do", "-e", SCRIPT, "--json"]
+            && call.env_remove == UNSCOPED
+    }));
 }
 
 const LAYOUT: &str = "com.superlogical.terminal.shell";

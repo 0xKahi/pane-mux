@@ -2,6 +2,7 @@ use crate::mux::{Current, Pane, Session, Tree, Window};
 use serde::{Deserialize, Deserializer, de};
 
 pub(super) const SCRIPT: &str = include_str!("snapshot.lua");
+pub(super) const CAPTURE: &str = include_str!("capture.lua");
 // REX_CLIENT otherwise makes even `do -e` target the app rather than the server.
 pub(super) const UNSCOPED: &[&str] = &["REX_SESSION", "REX_BLOCK", "REX_CLIENT"];
 

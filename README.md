@@ -61,7 +61,8 @@ to launch `switch-session` (`Ctrl-b`, then `o`) or `move-pane` (`Ctrl-b`, then
 `m`) in a floating block. The panes column leaves out the picker's own floating
 block, so pane numbering has no gap. If you run pane-mux in a tiled block (for
 example, by typing it into an ordinary shell block), that block stays listed
-and shows a placeholder when previewed.
+and shows a placeholder when previewed. Like tmux, the preview shows the
+block's visible screen, not its scrollback.
 
 To let `switch-session` change the app view, enable **Remote Control** in
 **Settings > General > Client Info**. If Remote Control is off or no app
