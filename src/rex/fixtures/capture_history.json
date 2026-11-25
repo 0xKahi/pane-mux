@@ -1,0 +1,5 @@
+{
+  "rows": 2,
+  "content": "history 1\r\nhistory 2\r\n\u001b[31mscreen 1\u001b[0m\r\nscreen 2\r\n",
+  "partial": false
+}

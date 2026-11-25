@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 
 use super::{
     ProcessRunner, Runner, RunnerError, history,
-    snapshot::{SCRIPT, SessionView, Snapshot, UNSCOPED, pane_location},
+    snapshot::{CAPTURE, SCRIPT, SessionView, Snapshot, UNSCOPED, pane_location},
 };
 use crate::{
     config::settings::{FloatingPaneConfig, FloatingPosition},
@@ -14,6 +14,7 @@ use crate::{
 };
 
 const MIN_API_REVISION: u32 = 18;
+const CAPTURE_BUDGET: u32 = 131_072;
 
 pub struct RexCli {
     runner: Box<dyn Runner>,
@@ -417,19 +418,30 @@ impl Mux for RexCli {
     }
 
     fn capture(&self, pane_id: &str) -> Result<String> {
-        let output = self.run(
-            &[
-                "capture", "-b", pane_id, "--format", "vt", "--unwrap", "--trim",
-            ],
-            UNSCOPED,
-        )?;
-        let start = output
-            .strip_suffix('\n')
-            .unwrap_or(&output)
-            .rmatch_indices('\n')
-            .nth(499)
-            .map_or(0, |(i, _)| i + 1);
-        Ok(output[start..].replace("\r\n", "\n"))
+        #[derive(Deserialize)]
+        struct Capture {
+            rows: u32,
+            content: String,
+            partial: bool,
+        }
+
+        let location = self
+            .lookup(|tree| pane_location(tree, pane_id))?
+            .with_context(|| format!("pane not found: {pane_id}"))?;
+        let args = json!({
+            "session_id": location.session_id,
+            "block_id": pane_id,
+            "budget": CAPTURE_BUDGET,
+        })
+        .to_string();
+        let output = self.run(&["do", "-e", CAPTURE, "--json", "--args", &args], UNSCOPED)?;
+        let capture: Capture =
+            serde_json::from_str(&output).context("invalid Rex capture response")?;
+        Ok(visible_rows(
+            &capture.content,
+            capture.rows as usize,
+            capture.partial,
+        ))
     }
 
     fn preview_interval(&self) -> Duration {
@@ -610,6 +622,27 @@ fn with_cleanup(err: anyhow::Error, cleanup: Result<()>) -> anyhow::Error {
         Ok(()) => err,
         Err(cleanup) => anyhow::anyhow!("{err:#}; Rex move cleanup failed: {cleanup:#}"),
     }
+}
+
+fn visible_rows(content: &str, rows: usize, partial: bool) -> String {
+    let normalized = content.replace("\r\n", "\n");
+    let content = if partial {
+        normalized.split_once('\n').map_or("", |(_, tail)| tail)
+    } else {
+        &normalized
+    };
+    if rows == 0 {
+        return content.to_owned();
+    }
+
+    // Don't count a final newline as a row, but retain it in the returned slice.
+    let start = content
+        .strip_suffix('\n')
+        .unwrap_or(content)
+        .rmatch_indices('\n')
+        .nth(rows - 1)
+        .map_or(0, |(i, _)| i + 1);
+    content[start..].to_owned()
 }
 
 fn combine(operation: Result<()>, cleanup: Result<()>) -> Result<()> {
