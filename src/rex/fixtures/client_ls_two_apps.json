@@ -1,0 +1,16 @@
+{
+  "clients": [
+    {
+      "client_id": "client:00000000-0000-7000-8000-000000000022",
+      "info": { "kind": "app" },
+      "connection_state": "connected",
+      "session_ids": ["session:home"]
+    },
+    {
+      "client_id": "client:invoking-app",
+      "info": { "kind": "app" },
+      "connection_state": "connected",
+      "session_ids": ["session:home"]
+    }
+  ]
+}

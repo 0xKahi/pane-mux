@@ -63,29 +63,35 @@ struct Block {
     #[serde(default)]
     label: String,
     process_name: Option<String>,
+    owner: Option<String>,
+}
+
+pub(super) struct SelfBlock {
+    pub current: Current,
+    pub owner: Option<String>,
 }
 
 impl Snapshot {
-    pub(super) fn into_tree(self, self_block: Option<&str>) -> (Tree, Option<Current>) {
-        let mut current = None;
+    pub(super) fn into_tree(self, self_block: Option<&str>) -> (Tree, Option<SelfBlock>) {
+        let mut found = None;
         let sessions = self
             .sessions
             .into_iter()
             .map(|view| {
                 let (session, location) = view.into_session(self_block);
-                if current.is_none() {
-                    current = location;
+                if found.is_none() {
+                    found = location;
                 }
                 session
             })
             .collect();
-        (Tree { sessions }, current)
+        (Tree { sessions }, found)
     }
 }
 
 impl SessionView {
-    pub(super) fn into_session(self, self_block: Option<&str>) -> (Session, Option<Current>) {
-        let mut current = None;
+    pub(super) fn into_session(self, self_block: Option<&str>) -> (Session, Option<SelfBlock>) {
+        let mut found = None;
         let windows = self
             .windows
             .into_iter()
@@ -100,16 +106,21 @@ impl SessionView {
                         let floating = layer.kind == "floating";
                         layer.blocks.into_iter().map(move |block| (block, floating))
                     })
-                    .filter(|(block, floating)| {
-                        if self_block != Some(block.block_id.as_str()) {
-                            return true;
+                    .filter_map(|(mut block, floating)| {
+                        if self_block == Some(block.block_id.as_str()) {
+                            found.get_or_insert_with(|| SelfBlock {
+                                current: Current {
+                                    session_id: self.session_id.clone(),
+                                    window_id: w.window_id.clone(),
+                                    pane_id: block.block_id.clone(),
+                                },
+                                owner: block.owner.take(),
+                            });
+                            if floating {
+                                return None;
+                            }
                         }
-                        current.get_or_insert_with(|| Current {
-                            session_id: self.session_id.clone(),
-                            window_id: w.window_id.clone(),
-                            pane_id: block.block_id.clone(),
-                        });
-                        !floating
+                        Some((block, floating))
                     })
                     .enumerate()
                     .map(|(i, (b, floating))| Pane {
@@ -138,7 +149,7 @@ impl SessionView {
                 windows,
                 ..Session::default()
             },
-            current,
+            found,
         )
     }
 }

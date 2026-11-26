@@ -26,6 +26,7 @@ pub struct RexCli {
     last_tree: RefCell<Option<Tree>>,
     // Boxed to keep `Backend::Rex` small enough for clippy::large_enum_variant.
     last_current: RefCell<Option<Box<Current>>>,
+    self_owner: RefCell<Option<String>>,
 }
 
 impl RexCli {
@@ -52,6 +53,7 @@ impl RexCli {
             endpoint: RefCell::default(),
             last_tree: RefCell::default(),
             last_current: RefCell::default(),
+            self_owner: RefCell::default(),
         }
     }
 
@@ -227,27 +229,43 @@ impl RexCli {
         Ok(())
     }
 
-    fn select_app(&self, left: Option<&str>, session: &str, window: Option<&str>) -> Result<()> {
-        let id = match &self.app_client {
-            Some(id) => id.clone(),
-            None => {
-                let output = self.run(&["client", "ls", "--json"], UNSCOPED)?;
-                let clients: Clients =
-                    serde_json::from_str(&output).context("invalid Rex client ls response")?;
-                let mut apps = clients.clients.into_iter().filter(|c| {
-                    c.connection_state == "connected"
-                        && c.info.as_ref().is_some_and(|i| i.kind == "app")
-                });
-                let first = apps.next().context("no connected Rex app client")?;
-                if left.is_some_and(|id| !first.session_ids.iter().any(|s| s == id)) {
-                    apps.find(|c| left.is_some_and(|id| c.session_ids.iter().any(|s| s == id)))
-                        .unwrap_or(first)
-                        .client_id
-                } else {
-                    first.client_id
-                }
+    fn app_client_id(&self, left: Option<&str>) -> Result<String> {
+        if let Some(id) = &self.app_client {
+            return Ok(id.clone());
+        }
+
+        let output = self.run(&["client", "ls", "--json"], UNSCOPED)?;
+        let clients: Clients =
+            serde_json::from_str(&output).context("invalid Rex client ls response")?;
+        let mut apps: Vec<_> = clients
+            .clients
+            .into_iter()
+            .filter(|c| {
+                c.connection_state == "connected"
+                    && c.info.as_ref().is_some_and(|i| i.kind == "app")
+            })
+            .collect();
+        if let Some(owner) = self.self_owner.borrow().as_ref()
+            && apps.iter().any(|app| &app.client_id == owner)
+        {
+            return Ok(owner.clone());
+        }
+
+        if let Some(left) = left {
+            let attached = |app: &AppCandidate| app.session_ids.iter().any(|id| id == left);
+            if apps.iter().any(attached) {
+                apps.retain(attached);
             }
-        };
+        }
+        match apps.len() {
+            0 => bail!("no connected Rex app client"),
+            1 => Ok(apps.swap_remove(0).client_id),
+            count => Err(AmbiguousApp(count).into()),
+        }
+    }
+
+    fn select_app(&self, left: Option<&str>, session: &str, window: Option<&str>) -> Result<()> {
+        let id = self.app_client_id(left)?;
         let session_arg = format!("session_id={session}");
         let mut argv = vec!["-C", &id, "do", "session.select", &session_arg];
         let window_arg = window.map(|w| format!("window_id={w}"));
@@ -294,7 +312,11 @@ impl RexCli {
             self.focus_window(&id, window)?;
         }
         let hint = self.select_app(left.as_deref(), &id, window.as_deref()).err().map(|err| {
-            format!("Could not show Rex session {label:?}. Turn on Remote Control in Rex settings to switch sessions from pane-mux.\n{err:#}")
+            if let Some(ambiguous) = err.downcast_ref::<AmbiguousApp>() {
+                format!("pane-mux could not tell which Rex app to switch to session {label:?}: {ambiguous}. Set REX_CLIENT to an app's label or client ID to choose one.")
+            } else {
+                format!("Could not show Rex session {label:?}. Turn on Remote Control in Rex settings to switch sessions from pane-mux.\n{err:#}")
+            }
         });
 
         let endpoint = self.endpoint.borrow();
@@ -316,6 +338,17 @@ struct NewWindow {
     #[serde(default)]
     block_ids: Vec<String>,
 }
+
+#[derive(Debug)]
+struct AmbiguousApp(usize);
+
+impl std::fmt::Display for AmbiguousApp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} connected apps are candidates", self.0)
+    }
+}
+
+impl std::error::Error for AmbiguousApp {}
 
 #[derive(Deserialize)]
 struct Clients {
@@ -405,7 +438,7 @@ impl Mux for RexCli {
     fn tree(&self) -> Result<Tree> {
         let output = self.run(&["do", "-e", SCRIPT, "--json"], UNSCOPED)?;
         let snapshot: Snapshot = serde_json::from_str(&output).context("invalid Rex snapshot")?;
-        let (mut tree, current) = snapshot.into_tree(self.block.as_deref());
+        let (mut tree, self_block) = snapshot.into_tree(self.block.as_deref());
         let endpoint = self.endpoint.borrow();
         history::rank(
             &mut tree,
@@ -413,7 +446,11 @@ impl Mux for RexCli {
             self.server.as_deref().or(endpoint.as_deref()),
         );
         self.last_tree.replace(Some(tree.clone()));
-        self.last_current.replace(current.map(Box::new));
+        let (current, owner) = self_block
+            .map(|block| (Some(Box::new(block.current)), block.owner))
+            .unwrap_or_default();
+        self.last_current.replace(current);
+        self.self_owner.replace(owner);
         Ok(tree)
     }
 

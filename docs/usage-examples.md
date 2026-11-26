@@ -74,6 +74,14 @@ For `switch-session` to change the app view, enable **Remote Control** under
 connected, the picked window or block is still focused on the server.
 pane-mux prints a hint naming the target session to stderr and exits 0.
 
+When several Rex apps are connected to the same server, `switch-session`
+switches the app that opened the picker block (the app that owns the block
+pane-mux runs in). If pane-mux can't tell which app to switch, for example if
+several apps are connected and the block has no app owner, it still focuses the
+picked window or block in its session, leaves every app's view unchanged, and
+prints a hint. Set `REX_CLIENT` to an app's label (for example, `jojo-mac`) or
+client ID to choose that app.
+
 The standalone picker prints full Rex IDs. For example, pick a block and
 focus it from a Rex shell:
 
