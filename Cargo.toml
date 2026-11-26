@@ -1,6 +1,6 @@
 [package]
 name = "pane-mux"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2024"
 description = "A yazi-style picker for tmux sessions, windows and panes"
 license = "MIT"
