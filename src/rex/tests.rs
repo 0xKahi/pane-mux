@@ -31,6 +31,8 @@ const WORK: &str = "session:00000000-0000-7000-8000-000000000001";
 const HERE: &str = "block:00000000-0000-7000-8000-0000006e22b7";
 const WINDOW: &str = "window:00000000-0000-7000-8000-000000000025";
 const APP: &str = "client:00000000-0000-7000-8000-000000000022";
+const OWNER: &str = "client:invoking-app";
+const TWO_APPS: &str = include_str!("fixtures/client_ls_two_apps.json");
 
 fn setup(snapshot: &str, block: Option<&str>) -> (RexCli, FixtureRunner) {
     let runner = FixtureRunner::default();
@@ -137,8 +139,8 @@ fn snapshot_filters_only_the_floating_self_block_before_numbering() {
         (SELF_TILED, true),
     ] {
         let parse = || serde_json::from_str::<Snapshot>(fixture).unwrap();
-        let (tree, current) = parse().into_tree(Some(PICKER));
-        assert_eq!(current, Some(picker_current()));
+        let (tree, self_block) = parse().into_tree(Some(PICKER));
+        assert_eq!(self_block.unwrap().current, picker_current());
         let rows = |tree: &Tree| {
             tree.sessions[0].windows[0]
                 .panes
@@ -147,7 +149,7 @@ fn snapshot_filters_only_the_floating_self_block_before_numbering() {
                 .collect::<Vec<_>>()
         };
         let (unfiltered, no_current) = parse().into_tree(None);
-        assert_eq!(no_current, None);
+        assert!(no_current.is_none());
         assert_eq!(
             rows(&unfiltered),
             [
@@ -170,6 +172,26 @@ fn snapshot_filters_only_the_floating_self_block_before_numbering() {
             );
         }
     }
+}
+
+#[test]
+fn snapshot_finds_self_owner_in_tiled_floating_and_minimized_layers() {
+    for fixture in [SELF_TILED, SELF_FLOATING, SELF_MINIMIZED] {
+        let snapshot: Snapshot = serde_json::from_str(fixture).unwrap();
+        let (_, self_block) = snapshot.into_tree(Some(PICKER));
+        assert_eq!(self_block.unwrap().owner.as_deref(), Some(OWNER));
+    }
+}
+
+#[test]
+fn snapshot_has_no_self_owner_when_unowned_unset_or_not_found() {
+    for block in [None, Some("block:unknown")] {
+        let snapshot: Snapshot = serde_json::from_str(SELF_FLOATING).unwrap();
+        assert!(snapshot.into_tree(block).1.is_none());
+    }
+    let snapshot: Snapshot = serde_json::from_str(SELF_FLOATING).unwrap();
+    let (_, self_block) = snapshot.into_tree(Some("block:zsh"));
+    assert_eq!(self_block.unwrap().owner, None);
 }
 
 #[test]
@@ -551,8 +573,89 @@ fn switching_focuses_block_then_selects_app_attached_to_left_session() {
     );
     assert_eq!(rex.switch(&pane.id).unwrap(), None);
     let calls = r.calls();
+    assert_eq!(calls.len(), 4);
     assert_eq!(calls[1].args[5], "session.focus_block");
+    assert_eq!(calls[2].args[1..], ["client", "ls", "--json"]);
     assert_eq!(calls[3].args[4], "session.select");
+}
+
+fn sidecar_select_reply(r: &FixtureRunner, app: &str) {
+    reply(
+        r,
+        &[
+            "-C",
+            app,
+            "do",
+            "session.select",
+            "session_id=session:sidecar",
+            "--json",
+        ],
+        Ok(include_str!("fixtures/select_success.json")),
+    );
+}
+
+#[test]
+fn switch_selects_self_block_owner_over_first_attached_app() {
+    let (rex, r) = setup(SELF_FLOATING, Some(PICKER));
+    reply(&r, &["client", "ls", "--json"], Ok(TWO_APPS));
+    sidecar_select_reply(&r, OWNER);
+    assert_eq!(rex.switch(SIDECAR).unwrap(), None);
+    assert_eq!(r.calls().len(), 3);
+}
+
+#[test]
+fn switch_prefers_rex_client_to_owner_without_listing_clients() {
+    let (rex, r) = setup(SELF_FLOATING, Some(PICKER));
+    let rex = rex.with_app_client("other-mac".into());
+    sidecar_select_reply(&r, "other-mac");
+    assert_eq!(rex.switch(SIDECAR).unwrap(), None);
+    let calls = r.calls();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(calls[1].args[1..3], ["-C", "other-mac"]);
+}
+
+#[test]
+fn switch_falls_back_to_attached_app_when_owner_is_disconnected_or_not_an_app() {
+    for (field, value) in [
+        ("connection_state", json!("disconnected")),
+        ("info", json!({"kind":"cli"})),
+    ] {
+        let (rex, r) = setup(SELF_FLOATING, Some(PICKER));
+        let mut clients: Value = serde_json::from_str(TWO_APPS).unwrap();
+        clients["clients"][1][field] = value;
+        clients["clients"].as_array_mut().unwrap().push(json!({
+            "client_id":"client:unrelated","info":{"kind":"app"},
+            "connection_state":"connected","session_ids":[SIDECAR],
+        }));
+        reply(&r, &["client", "ls", "--json"], Ok(&clients.to_string()));
+        sidecar_select_reply(&r, APP);
+        assert_eq!(rex.switch(SIDECAR).unwrap(), None);
+    }
+}
+
+#[test]
+fn switch_selects_only_connected_app_without_an_owner_or_attachment() {
+    let (rex, r) = setup(SELF_FLOATING, Some("block:zsh"));
+    reply(
+        &r,
+        &["client", "ls", "--json"],
+        Ok(include_str!("fixtures/client_ls.json")),
+    );
+    sidecar_select_reply(&r, APP);
+    assert_eq!(rex.switch(SIDECAR).unwrap(), None);
+}
+
+#[test]
+fn refresh_clears_stale_self_owner() {
+    let (rex, r) = setup(SELF_FLOATING, Some(PICKER));
+    rex.tree().unwrap();
+    let unowned = SELF_FLOATING.replace(r#", "owner": "client:invoking-app""#, "");
+    reply(&r, &["do", "-e", SCRIPT, "--json"], Ok(&unowned));
+    rex.tree().unwrap();
+    assert_eq!(rex.current().unwrap(), Some(picker_current()));
+    reply(&r, &["client", "ls", "--json"], Ok(TWO_APPS));
+    let hint = rex.switch(SIDECAR).unwrap().unwrap();
+    assert!(hint.contains("could not tell which Rex app"));
 }
 
 #[test]
@@ -658,6 +761,44 @@ fn app_failure_is_nonfatal_and_records_target_then_left_by_whoami_endpoint() {
     let state = recent(next.tree().unwrap(), target, &[]);
     assert_eq!(state.sessions()[1].id, WORK);
     assert_eq!(state.session.as_deref(), Some(WORK));
+}
+
+#[test]
+fn ambiguous_apps_still_focus_and_record_target_then_left_without_selecting() {
+    let path = TempPath::new();
+    let (rex, r) = setup(SNAPSHOT, Some(HERE));
+    let rex = rex.with_history_path(path.0.clone());
+    reply(
+        &r,
+        &["whoami", "--json"],
+        Ok(r#"{"api_revision":18,"endpoint":"endpoint"}"#),
+    );
+    rex.check_api_revision().unwrap();
+    let tree = rex.tree().unwrap();
+    let target = &tree.sessions[1];
+    let window = &target.windows[0].id;
+    api(
+        &r,
+        Some(&target.id),
+        "session.focus_window",
+        json!({"window_id":window}),
+        Ok("{}"),
+    );
+    let clients = TWO_APPS.replace(HOME, WORK);
+    reply(&r, &["client", "ls", "--json"], Ok(&clients));
+
+    assert_eq!(
+        rex.switch(window).unwrap().as_deref(),
+        Some(
+            "pane-mux could not tell which Rex app to switch to session \"notes\": 2 connected apps are candidates. Set REX_CLIENT to an app's label or client ID to choose one."
+        )
+    );
+    let calls = r.calls();
+    assert_eq!(calls.len(), 4);
+    assert_eq!(calls[2].args[5], "session.focus_window");
+    assert_eq!(calls[3].args[1..], ["client", "ls", "--json"]);
+    let stored: Value = serde_json::from_slice(&std::fs::read(&path.0).unwrap()).unwrap();
+    assert_eq!(stored, json!({"endpoint":[target.id,WORK]}));
 }
 
 #[test]

@@ -1,8 +1,8 @@
--- Read-only Rex snapshot for `rex do -e <code> --json`; unset REX_SESSION and
--- REX_BLOCK in the child. Returns one JSON document:
+-- Read-only Rex snapshot for `rex do -e <code> --json`; unset REX_SESSION,
+-- REX_BLOCK, and REX_CLIENT in the child. Returns one JSON document:
 -- {sessions: [{session_id, label, active_window_id?, windows: [{window_id,
 --   label, focused_block_id?, layers: [{layer_id, kind, state?, blocks: [
---     {block_id, label, flavor, process_name?}]}]}]}]}
+--     {block_id, label, flavor, owner?, process_name?}]}]}]}]}
 -- A '?' field is omitted when unavailable; empty lists serialize as {}.
 -- Layers and their blocks are already in Rex's order (tiled first, then floats).
 
@@ -21,6 +21,7 @@ for _, session in ipairs(rex.call("session.list").sessions or {}) do
                     block_id = block.block_id,
                     label = block.label,
                     flavor = block.flavor,
+                    owner = block.owner,
                 }
                 if block.creator_name == "com.superlogical.terminal" then
                     -- A process can exit (or the block can close) while polling.

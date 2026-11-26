@@ -15,7 +15,7 @@
               "blocks": [
                 { "block_id": "block:nvim", "label": "shell", "process_name": "nvim" },
                 { "block_id": "block:zsh", "label": "shell", "process_name": "zsh" },
-                { "block_id": "block:picker", "label": "shell", "process_name": "pane-mux" }
+                { "block_id": "block:picker", "label": "shell", "process_name": "pane-mux", "owner": "client:invoking-app" }
               ]
             },
             {

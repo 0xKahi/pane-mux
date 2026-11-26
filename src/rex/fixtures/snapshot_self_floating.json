@@ -20,7 +20,7 @@
             {
               "kind": "floating",
               "blocks": [
-                { "block_id": "block:picker", "label": "shell", "process_name": "pane-mux" }
+                { "block_id": "block:picker", "label": "shell", "process_name": "pane-mux", "owner": "client:invoking-app" }
               ]
             },
             {
